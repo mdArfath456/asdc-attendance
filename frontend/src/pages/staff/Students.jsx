@@ -104,12 +104,12 @@ export default function Students() {
         <section className="card" key={group.course.id}>
           <h2>{group.course.name} ({group.count})</h2>
           {group.students.length === 0 && <p className="muted">No students in this course.</p>}
-          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Move to another course</th><th>Remove</th></tr></thead>
+          <div className="table-wrap student-group-table"><table><thead><tr><th>Name</th><th>Email</th><th>Move to another course</th><th>Remove</th></tr></thead>
             <tbody>{group.students.map((row) => (
               <tr key={row.enrollmentId}>
-                <td>{row.student.name}</td><td>{row.student.email}</td>
-                <td><div className="row"><select value={targets[row.enrollmentId] || ''} onChange={(e) => setTargets({ ...targets, [row.enrollmentId]: e.target.value })}><option value="">Select course</option>{courses.filter((course) => course._id !== group.course.id).map((course) => <option key={course._id} value={course._id}>{course.name}</option>)}</select><button className="btn small" disabled={!targets[row.enrollmentId]} onClick={() => move(row)}>Move</button></div></td>
-                <td><button className="btn small danger" onClick={() => window.confirm('Remove this student from the course?') && remove(row)}>Remove</button></td>
+                <td data-label="Name">{row.student.name}</td><td data-label="Email">{row.student.email}</td>
+                <td data-label="Move to another course"><div className="row"><select aria-label={`Move ${row.student.name} to another course`} value={targets[row.enrollmentId] || ''} onChange={(e) => setTargets({ ...targets, [row.enrollmentId]: e.target.value })}><option value="">Select course</option>{courses.filter((course) => course._id !== group.course.id).map((course) => <option key={course._id} value={course._id}>{course.name}</option>)}</select><button className="btn small" disabled={!targets[row.enrollmentId]} onClick={() => move(row)}>Move</button></div></td>
+                <td data-label="Remove"><button className="btn small danger" onClick={() => window.confirm('Remove this student from the course?') && remove(row)}>Remove</button></td>
               </tr>
             ))}</tbody></table></div>
         </section>

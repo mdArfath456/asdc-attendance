@@ -37,7 +37,7 @@ export default function Layout() {
     <div className="shell">
       <header className="topbar">
         <Link to={base} className="brand">ASDC Attendance</Link>
-        <nav>{links.map(([to, label, end]) => <NavLink key={to} to={to} end={!!end}>{label}</NavLink>)}</nav>
+        <nav aria-label="Main navigation">{links.map(([to, label, end]) => <NavLink key={to} to={to} end={!!end}>{label}</NavLink>)}</nav>
         <div className="who">
           <span>{user.name} <small className="muted">({user.role.replace('_', ' ')})</small></span>
           <button className="btn small ghost" onClick={async () => { await logout(); nav('/'); }}>Log out</button>
