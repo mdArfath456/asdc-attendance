@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm --prefix frontend ci",
-  "buildCommand": "npm --prefix frontend run build",
+  "installCommand": "unset npm_config_cache_dir NPM_CONFIG_CACHE_DIR && npm --prefix frontend ci",
+  "buildCommand": "unset npm_config_cache_dir NPM_CONFIG_CACHE_DIR && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
