@@ -1,0 +1,140 @@
+:root { --bg:#f5f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#4f46e5; --green:#16a34a; --amber:#d97706; --red:#dc2626; --blue:#2563eb; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+a { color: var(--brand); text-decoration: none; }
+.muted { color: var(--muted); } .center { text-align:center; padding:3rem 1rem; }
+.shell { min-height:100vh; }
+.topbar { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; padding:.75rem 1.25rem; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+.brand { font-weight:700; color:var(--ink); } .topbar nav { display:flex; gap:.25rem; flex:1; }
+.topbar nav a { padding:.4rem .8rem; border-radius:.5rem; color:var(--muted); } .topbar nav a.active { background:#eef2ff; color:var(--brand); font-weight:600; }
+.who { display:flex; gap:.75rem; align-items:center; font-size:.9rem; }
+.content { max-width:1100px; margin:0 auto; padding:1.25rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:.9rem; padding:1.1rem; margin-bottom:1rem; }
+.grid { display:grid; gap:1rem; } .grid.cols-2 { grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); } .grid.cols-4 { grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); }
+.row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; } .spread { justify-content:space-between; }
+h1 { font-size:1.5rem; margin:.2rem 0 1rem; } h2 { font-size:1.15rem; margin:0 0 .75rem; } h3 { margin:0 0 .75rem; }
+label { display:block; font-size:.85rem; font-weight:600; margin:.6rem 0 .25rem; }
+input, select, textarea { width:100%; padding:.55rem .7rem; border:1px solid #cbd5e1; border-radius:.5rem; font:inherit; background:#fff; }
+input[type=checkbox] { width:auto; }
+.btn { padding:.55rem 1rem; border-radius:.55rem; border:1px solid var(--brand); background:var(--brand); color:#fff; font-weight:600; cursor:pointer; font:inherit; }
+.btn:disabled { opacity:.55; cursor:not-allowed; } .btn.ghost { background:#fff; color:var(--brand); } .btn.danger { background:var(--red); border-color:var(--red); } .btn.small { padding:.3rem .65rem; font-size:.85rem; }
+.error { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; padding:.65rem .8rem; border-radius:.6rem; margin:.6rem 0; }
+.success { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:.65rem .8rem; border-radius:.6rem; margin:.6rem 0; }
+.badge { display:inline-block; padding:.12rem .55rem; border-radius:999px; font-size:.75rem; font-weight:700; color:#fff; background:var(--muted); }
+.badge.green { background:var(--green); } .badge.amber { background:var(--amber); } .badge.red { background:var(--red); } .badge.blue { background:var(--blue); }
+table { width:100%; border-collapse:collapse; font-size:.92rem; } th, td { text-align:left; padding:.5rem .55rem; border-bottom:1px solid var(--line); } th { color:var(--muted); font-weight:600; }
+.table-wrap { overflow-x:auto; }
+.stat { text-align:center; } .stat b { display:block; font-size:2rem; } .stat span { color:var(--muted); font-size:.85rem; }
+.tabs { display:flex; gap:.4rem; margin-bottom:1rem; flex-wrap:wrap; } .tabs button { border:1px solid var(--line); background:#fff; padding:.45rem .9rem; border-radius:.55rem; cursor:pointer; font:inherit; } .tabs button.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+.modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:1rem; z-index:20; }
+.modal { background:#fff; border-radius:1rem; padding:1.25rem; width:100%; max-width:460px; } .modal-footer { display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem; }
+.login { max-width:420px; margin:6vh auto; padding:0 1rem; } .divider { text-align:center; color:var(--muted); margin:1rem 0; font-size:.85rem; }
+.qr-stage { display:flex; flex-direction:column; align-items:center; gap:.8rem; background:#fff; padding:1.5rem; border-radius:1rem; border:1px solid var(--line); }
+.qr-frame { background:#fff; padding:14px; border:6px solid #000; border-radius:12px; line-height:0; }
+.countdown { width:100%; max-width:360px; height:10px; border-radius:99px; background:#e2e8f0; overflow:hidden; } .countdown > div { height:100%; background:var(--brand); transition:width .25s linear; }
+.feed { max-height:420px; overflow:auto; }
+#reader { width:100%; max-width:420px; margin:0 auto; border-radius:.8rem; overflow:hidden; }
+.result { text-align:center; padding:2rem 1rem; } .result .big { font-size:3rem; }
+.scan-ok { color:var(--green); } .scan-late { color:var(--amber); } .scan-bad { color:var(--red); }
+@media (max-width:640px) { .topbar nav { order:3; width:100%; } .content { padding:.8rem; } }
+
+/* Accessible field feedback and course selection. */
+.field { position:relative; min-width:0; margin-bottom:.85rem; }
+.field label { margin:.2rem 0 .35rem; }
+.field input, .field select, .field textarea { display:block; }
+.field input:focus, .field select:focus, .field textarea:focus, input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible {
+  outline:3px solid rgba(79,70,229,.28); outline-offset:2px; border-color:var(--brand);
+}
+.field input.input-invalid, .field select.input-invalid, .field textarea.input-invalid { border-color:var(--red); }
+.field-tooltip { display:block; width:fit-content; max-width:100%; margin-top:.3rem; padding:.28rem .55rem; border:1px solid #fecaca; border-radius:.45rem; background:#fff1f2; color:#991b1b; font-size:.78rem; line-height:1.35; }
+.course-picker { min-width:0; margin:1rem 0; padding:0; border:0; }
+.course-picker legend { margin-bottom:.55rem; font-size:.9rem; font-weight:700; }
+.course-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:.65rem; }
+.course-choice { display:flex; align-items:flex-start; gap:.65rem; min-height:72px; margin:0; padding:.8rem; border:1px solid var(--line); border-radius:.75rem; background:#fff; cursor:pointer; }
+.course-choice:hover, .course-choice.selected { border-color:var(--brand); background:#eef2ff; }
+.course-choice input[type=radio] { width:1rem; min-width:1rem; margin:.18rem 0 0; accent-color:var(--brand); }
+.course-choice span { display:grid; gap:.2rem; }
+.course-choice small { color:var(--muted); }
+
+/* Student authentication experience. */
+.auth-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(420px,.92fr); min-height:100vh; background:#f6f7ff; }
+.auth-brand-panel { display:flex; flex-direction:column; justify-content:center; padding:clamp(2rem,7vw,6rem); background:linear-gradient(145deg,#312e81,#4338ca 58%,#6366f1); color:#fff; }
+.auth-brand-mark { display:inline-grid; place-items:center; width:48px; height:48px; border-radius:15px; background:rgba(255,255,255,.16); font-size:1.05rem; font-weight:800; letter-spacing:.05em; }
+.auth-brand-panel .eyebrow, .admin-login-card .eyebrow { margin:1.4rem 0 .6rem; font-size:.72rem; font-weight:800; letter-spacing:.14em; opacity:.78; }
+.auth-brand-panel h1 { font-size:clamp(2rem,4vw,3.2rem); line-height:1.15; }
+.auth-intro { max-width:420px; color:#e0e7ff; line-height:1.65; }
+.feature-list { display:grid; gap:1rem; margin:2rem 0 0; padding:0; list-style:none; }
+.feature-list li { display:flex; align-items:center; gap:.75rem; color:#eef2ff; }
+.feature-list li span { display:grid; place-items:center; width:30px; height:30px; border:1px solid rgba(255,255,255,.35); border-radius:9px; }
+.auth-panel { display:flex; justify-content:center; align-items:center; padding:clamp(1rem,4vw,3rem); }
+.auth-card { width:min(100%,500px); padding:clamp(1rem,3vw,2rem); border:1px solid #e0e7ff; border-radius:1.1rem; background:#fff; box-shadow:0 16px 50px rgba(30,41,99,.08); }
+.auth-card h2 { margin:.15rem 0 .4rem; font-size:1.55rem; }
+.auth-card .eyebrow { margin:0 0 .4rem; color:#4f46e5; font-size:.72rem; font-weight:800; letter-spacing:.12em; }
+.auth-google { display:flex; justify-content:center; margin:.7rem 0; }
+.auth-submit { width:100%; margin-top:.7rem; padding:.75rem 1rem; }
+.auth-links { margin:.9rem 0 0; text-align:center; font-size:.9rem; }
+.fine-print { color:var(--muted); font-size:.78rem; line-height:1.5; }
+.auth-mobile-brand { display:none; }
+.role-card { display:grid; grid-template-columns:auto 1fr; gap:.5rem .8rem; margin:1rem 0; padding:1rem; border:1px solid var(--line); border-radius:.85rem; }
+.role-card h3 { margin:.1rem 0 .2rem; }
+.role-card p { margin:.2rem 0; font-size:.86rem; }
+.role-icon { display:grid; place-items:center; width:40px; height:40px; border-radius:12px; background:#eef2ff; color:#4338ca; }
+.role-actions { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:.5rem; }
+.admin-role { background:#fafbff; }
+.password-field { position:relative; }
+.password-toggle { position:absolute; top:2.02rem; right:.5rem; padding:.35rem .5rem; border:0; background:transparent; color:var(--brand); font-size:.8rem; cursor:pointer; }
+.password-field input { padding-right:4rem; }
+.password-checklist { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.35rem .7rem; margin:.2rem 0 .8rem; padding:0; list-style:none; color:var(--muted); font-size:.78rem; }
+.password-checklist .passed { color:#15803d; }
+.admin-login-page { display:grid; min-height:100vh; place-items:center; padding:1rem; background:radial-gradient(ellipse at top,#1e293b,#080d19 65%); color:#e2e8f0; }
+.admin-login-card { width:min(100%,450px); padding:clamp(1.2rem,4vw,2.3rem); border:1px solid #334155; border-radius:1rem; background:#111827; box-shadow:0 24px 80px rgba(0,0,0,.35); }
+.admin-login-card h1 { margin:.25rem 0 .6rem; font-size:1.75rem; }
+.admin-login-card .admin-note { color:#94a3b8; font-size:.9rem; }
+.admin-login-card .field label { color:#cbd5e1; }
+.admin-login-card input { border-color:#475569; background:#0b1220; color:#f8fafc; }
+.admin-login-card .divider { color:#94a3b8; }
+.admin-lock { display:grid; place-items:center; width:48px; height:48px; border-radius:14px; background:#1e293b; color:#a5b4fc; font-size:1.25rem; }
+.admin-submit { width:100%; margin-top:.5rem; background:#4338ca; border-color:#6366f1; }
+.admin-login-card .auth-links a { color:#a5b4fc; }
+.google-button { display:flex; justify-content:center; min-height:42px; }
+
+/* Course-first session operations. */
+.live-banner { order:4; flex:1 0 100%; padding:.55rem .8rem; border-radius:.55rem; background:#fff7ed; color:#9a3412; font-size:.86rem; font-weight:600; }
+.live-banner a { color:#9a3412; text-decoration:underline; }
+.attendance-course-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); }
+.attendance-course-card { display:flex; flex-direction:column; min-height:230px; }
+.attendance-course-card h2 { font-size:1.3rem; }
+.attendance-course-card .eyebrow { margin:0 0 .4rem; color:var(--brand); font-size:.75rem; font-weight:800; letter-spacing:.08em; }
+.enrolled-count { margin-top:auto; color:var(--muted); }
+.enrolled-count b { color:var(--ink); font-size:1.25rem; }
+.start-session-btn, .resume-btn { display:block; width:100%; margin-top:.4rem; padding:.8rem 1rem; text-align:center; }
+.empty-state { padding:2rem; text-align:center; }
+.attendance-link { margin:.2rem 0 1rem; font-weight:700; }
+.requested-group { border-left:4px solid #818cf8; }
+.requested-students { padding-left:1.2rem; line-height:1.8; }
+.requested-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:1rem; align-items:end; }
+.requested-actions form { min-width:0; }
+.requested-actions .btn { margin:.3rem 0; }
+.inline-check { display:flex; align-items:center; gap:.5rem; }
+.inline-check input { width:auto; }
+.access-denied { display:grid; min-height:70vh; place-items:center; padding:1rem; }
+.access-denied .card { width:min(100%,520px); text-align:center; }
+
+@media (max-width:800px) {
+  .auth-layout { grid-template-columns:1fr; }
+  .auth-brand-panel { display:none; }
+  .auth-panel { align-items:flex-start; padding:1rem; }
+  .auth-mobile-brand { display:flex; align-items:center; gap:.65rem; width:min(100%,500px); margin:0 auto .75rem; }
+  .auth-mobile-brand .auth-brand-mark { width:38px; height:38px; border-radius:12px; background:#4338ca; color:#fff; }
+  .auth-panel { display:block; }
+  .auth-card { margin:0 auto; }
+  .topbar { position:static; }
+}
+@media (max-width:420px) {
+  .role-actions { flex-direction:column; }
+  .role-actions .btn { width:100%; text-align:center; }
+  .password-checklist { grid-template-columns:1fr; }
+  .course-card-grid { grid-template-columns:1fr; }
+  .auth-card { padding:1rem; }
+  .who { width:100%; justify-content:space-between; }
+}

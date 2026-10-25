@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /courses
+Disallow: /api/
+Disallow: /admin/
+Disallow: /trainer/
+Disallow: /student/

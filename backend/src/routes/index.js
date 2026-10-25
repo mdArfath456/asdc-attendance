@@ -1,0 +1,10 @@
+const router = require('express').Router();
+router.use('/auth', require('../modules/auth/auth.routes'));
+router.use('/users', require('../modules/users/users.routes'));
+router.use('/courses', require('../modules/courses/courses.routes'));
+router.use('/batches', require('../modules/batches/batches.routes'));
+router.use(require('../modules/enrollments/enrollments.routes'));
+router.use(require('../modules/attendance/attendance.routes'));
+router.use(require('../modules/reports/reports.routes'));
+router.use(require('../modules/audit/audit.routes'));
+module.exports = router;

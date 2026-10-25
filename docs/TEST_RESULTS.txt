@@ -1,0 +1,63 @@
+PASS tests/integration/attendance.test.js (6.534 s)
+  session start / authorisation
+    ✓ 3. admin and assigned (authorised) trainer can start; QR token returned (497 ms)
+    ✓ 7. students, unassigned trainers and trainers without manage rights cannot start/rotate/close (280 ms)
+    ✓ only one OPEN session per batch (409) (113 ms)
+    ✓ unauthenticated requests are rejected (8 ms)
+  check-in
+    ✓ 4. enrolled student checks in PRESENT; LATE after threshold (134 ms)
+    ✓ 4/5. previous token accepted inside grace window, rejected after; stale versions expired (232 ms)
+    ✓ forged / garbage tokens are QR_INVALID (147 ms)
+    ✓ 6. token from Batch A rejected for a student enrolled only in Batch B (152 ms)
+    ✓ 8. studentId in payload is rejected; identity always comes from the JWT (101 ms)
+    ✓ inactive enrollment cannot check in (ENROLLMENT_INELIGIBLE) (93 ms)
+    ✓ 10. repeated and concurrent scans create exactly one record; duplicates get 409 (228 ms)
+    ✓ 14. QR rotation increments metadata without creating sessions (215 ms)
+  closing, corrections, history
+    ✓ 11. closing rejects further scans and auto-creates ABSENT records (347 ms)
+    ✓ 13. manual correction requires a reason and writes an AuditLog atomically (277 ms)
+    ✓ corrections are rejected on sessions that are still OPEN (129 ms)
+    ✓ 12. transfer keeps Batch A history on the old enrollment and links new scans to Batch B (427 ms)
+    ✓ 9. students only see their own history; staff and query overrides are blocked (228 ms)
+    ✓ cancelled sessions are excluded from percentages (235 ms)
+  reports and secret hygiene
+    ✓ admin report/export work; trainers are scoped; students blocked (358 ms)
+    ✓ 15. responses never contain secrets or hashes (161 ms)
+    ✓ public catalogue exposes only public course fields; private routes are noindex (21 ms)
+
+PASS tests/integration/auth.test.js
+  local auth
+    ✓ login succeeds, sets httpOnly refresh cookie, never leaks hashes (100 ms)
+    ✓ wrong password and unknown email give the same 401 (46 ms)
+    ✓ suspended user cannot use an existing access token (21 ms)
+    ✓ refresh rotates the token; reusing an old one revokes the family (74 ms)
+  Google Sign-In
+    ✓ 1. pre-registered user: first login links googleId, audits, returns session (38 ms)
+    ✓ subsequent login matches by googleId even if the Google email differs (19 ms)
+    ✓ 2. unregistered Google account -> 403 and nothing is created (17 ms)
+    ✓ unverified email or invalid token -> 401 (16 ms)
+    ✓ account already linked to a different Google sub is rejected (20 ms)
+    ✓ inactive pre-registered user cannot sign in with Google (15 ms)
+  user provisioning RBAC
+    ✓ admins cannot create admins; super admins can; students cannot list users (60 ms)
+
+PASS tests/unit/qr.test.js
+  QR token
+    ✓ sign/parse round trip; payload has no personal data (2 ms)
+    ✓ tampered signature or version is QR_INVALID (2 ms)
+    ✓ current version valid within R+G, expired after (1 ms)
+    ✓ previous version valid only inside grace window (G=10s) (1 ms)
+    ✓ older versions expired; future versions invalid; other session invalid (1 ms)
+
+PASS tests/unit/percentage.test.js
+  attendance percentage formula
+    ✓ documented example (EXCUSED excluded, LATE weight 0.5) = 79.41 (1 ms)
+    ✓ EXCUSED as full credit = 80.56
+    ✓ no eligible sessions -> null, not 0 (1 ms)
+
+Test Suites: 4 passed, 4 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        8.194 s
+Ran all test suites.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?
