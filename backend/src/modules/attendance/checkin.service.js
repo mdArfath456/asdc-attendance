@@ -26,23 +26,34 @@ async function checkIn(user, { token, expectedBatchId }) {
     throw new ApiError(409, 'SESSION_DAY_ENDED', 'This attendance session has ended for the day');
   }
 
-  const enrollment = await Enrollment.findOne({ studentId: user.id, batchId: session.batchId }).sort({ status: 1 });
-  if (enrollment) {
-    const existingToday = await AttendanceRecord.findOne({
-      enrollmentId: enrollment._id,
-      sessionDate: session.sessionDate,
-      status: { $in: ['PRESENT', 'LATE', 'EXCUSED'] },
-    }).select('status checkInTimestamp').lean();
-    if (existingToday) alreadyRecordedError(existingToday);
-  }
+  const existingToday = await AttendanceRecord.findOne({
+    studentId: user.id,
+    batchId: session.batchId,
+    sessionDate: session.sessionDate,
+    status: { $in: ['PRESENT', 'LATE', 'EXCUSED'] },
+  }).select('status checkInTimestamp').lean();
+  if (existingToday) alreadyRecordedError(existingToday);
+
+  const enrollment = await Enrollment.findOne({
+    studentId: user.id,
+    batchId: session.batchId,
+    status: 'ACTIVE',
+    enrolledAt: { $lte: session.actualStartTime },
+  }).sort({ enrolledAt: -1 });
 
   if (session.status === 'CLOSED' || session.status === 'CANCELLED') throw new ApiError(409, 'SESSION_CLOSED', `This attendance session is ${session.status.toLowerCase()}`);
   if (session.status !== 'OPEN') throw new ApiError(409, 'SESSION_NOT_OPEN', 'This attendance session is not open yet');
 
   qr.validateAgainstSession(session, parsed, now); // QR_EXPIRED / QR_INVALID (incl. grace window)
 
-  if (!enrollment) throw new ApiError(403, 'BATCH_MISMATCH', 'You are not enrolled in the batch for this session');
-  if (enrollment.status !== 'ACTIVE' || enrollment.enrolledAt > session.actualStartTime) {
+  if (!enrollment) {
+    const historicalEnrollment = await Enrollment.exists({ studentId: user.id, batchId: session.batchId });
+    if (historicalEnrollment) {
+      throw new ApiError(403, 'ENROLLMENT_INELIGIBLE', 'Your enrollment in this course is not active. Contact your administrator.');
+    }
+    throw new ApiError(403, 'BATCH_MISMATCH', 'You are not enrolled in the batch for this session');
+  }
+  if (enrollment.enrolledAt > session.actualStartTime) {
     throw new ApiError(403, 'ENROLLMENT_INELIGIBLE', 'Your enrollment in this batch was not active when the session started');
   }
 
@@ -58,7 +69,8 @@ async function checkIn(user, { token, expectedBatchId }) {
   } catch (e) {
     if (e.code === 11000) {
       const existing = await AttendanceRecord.findOne({
-        enrollmentId: enrollment._id,
+        studentId: user.id,
+        batchId: session.batchId,
         sessionDate: session.sessionDate,
       }).select('status checkInTimestamp').lean();
       if (existing) alreadyRecordedError(existing);

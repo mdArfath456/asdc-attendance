@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reopeningSessionId, setReopeningSessionId] = useState('');
   const [loaded, setLoaded] = useState(false);
   const lateRef = useRef(null);
   const durationRef = useRef(null);
@@ -81,7 +82,7 @@ export default function Dashboard() {
 
   const reopen = async (session) => {
     setError('');
-    setBusy(true);
+    setReopeningSessionId(String(session._id));
     try {
       await api.post(`/attendance-sessions/${session._id}/reopen`);
       nav(`${base}/session/${session._id}`);
@@ -89,7 +90,7 @@ export default function Dashboard() {
       setError(errMsg(reopenError));
       load().catch((loadError) => setError(errMsg(loadError)));
     } finally {
-      setBusy(false);
+      setReopeningSessionId('');
     }
   };
 
@@ -130,7 +131,7 @@ export default function Dashboard() {
                   <p className="session-state">Taken today</p>
                   <div className="row">
                     <Link className="btn ghost" to={`${base}/session/${todaySession._id}`}>View attendance</Link>
-                    <button className="btn" disabled={busy} onClick={() => reopen(todaySession)}>{busy ? 'Reopening…' : 'Reopen today’s session'}</button>
+                    <button className="btn" disabled={reopeningSessionId === String(todaySession._id)} onClick={() => reopen(todaySession)}>{reopeningSessionId === String(todaySession._id) ? 'Reopening…' : 'Reopen today’s session'}</button>
                   </div>
                 </>
               ) : (

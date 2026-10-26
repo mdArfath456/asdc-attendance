@@ -154,6 +154,23 @@ describe('check-in', () => {
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('ENROLLMENT_INELIGIBLE');
   });
+  test('check-in uses the active enrollment when historical inactive enrollments also exist', async () => {
+    const { batch, students, token } = await open();
+    const student = students[0];
+    const oldEnrollment = await Enrollment.findOne({ studentId: student._id, batchId: batch._id, status: 'ACTIVE' });
+    await Enrollment.updateOne({ _id: oldEnrollment._id }, { $set: { status: 'DROPPED', endedAt: new Date() } });
+    const activeEnrollment = await Enrollment.create({
+      studentId: student._id,
+      batchId: batch._id,
+      courseId: batch.courseId,
+      enrolledAt: new Date(Date.now() - 60_000),
+    });
+
+    const result = await scan(student, token);
+
+    expect(result.status).toBe(201);
+    expect(String((await AttendanceRecord.findOne({ studentId: student._id })).enrollmentId)).toBe(String(activeEnrollment._id));
+  });
   test('10. repeated and concurrent scans create exactly one record; duplicates get 409', async () => {
     const { students, token, sessionId } = await open();
     const results = await Promise.all(Array.from({ length: 6 }, () => scan(students[0], token)));
@@ -300,6 +317,24 @@ describe('closing, corrections, history', () => {
     expect((await AttendanceRecord.findOne({ sessionId, studentId: students[1]._id })).status).toBe('EXCUSED');
     expect(await AttendanceRecord.exists({ sessionId, studentId: students[2]._id })).toBeFalsy();
     expect((await scan(students[2], reopened.body.data.qr.token)).status).toBe(201);
+  });
+  test('reopening one course leaves another course session closed', async () => {
+    const first = await open();
+    const otherCourse = await f.createCourse();
+    const otherBatch = await f.createBatch(otherCourse);
+    const otherStudents = [await f.createUser('STUDENT')];
+    await f.enroll(otherStudents[0], otherBatch);
+    const second = await start(admin, otherBatch);
+    await close(admin, first.sessionId);
+    await close(admin, second.body.data.session._id);
+
+    const reopened = await request(app)
+      .post(`/api/v1/attendance-sessions/${first.sessionId}/reopen`)
+      .set('Authorization', f.auth(admin));
+
+    expect(reopened.status).toBe(200);
+    expect((await AttendanceSession.findById(first.sessionId)).status).toBe('OPEN');
+    expect((await AttendanceSession.findById(second.body.data.session._id)).status).toBe('CLOSED');
   });
   test('auto-close closes a session whose start day has ended even if its requested duration has not', async () => {
     const { sessionId } = await open();
