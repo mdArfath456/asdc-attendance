@@ -36,6 +36,12 @@ table { width:100%; border-collapse:collapse; font-size:.92rem; } th, td { text-
 #reader { width:100%; max-width:420px; margin:0 auto; border-radius:.8rem; overflow:hidden; }
 .result { text-align:center; padding:2rem 1rem; } .result .big { font-size:3rem; }
 .scan-ok { color:var(--green); } .scan-late { color:var(--amber); } .scan-bad { color:var(--red); }
+.today-course-card.selected { border-color:var(--brand); box-shadow:0 0 0 2px rgba(79,70,229,.12); }
+.today-course-card h3 { overflow-wrap:anywhere; }
+.session-state { margin:.4rem 0 .8rem; color:var(--muted); font-size:.9rem; font-weight:700; }
+.session-state.session-live { color:var(--green); }
+.attendance-course-card .row { align-items:stretch; }
+.attendance-course-card .row > * { flex:1 1 150px; text-align:center; }
 @media (max-width:640px) { .topbar nav { order:3; width:100%; } .content { padding:.8rem; } }
 
 /* Accessible field feedback and course selection. */

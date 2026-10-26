@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "reset-db": "node scripts/reset-database.js",
+    "merge-same-day-sessions": "node scripts/merge-same-day-sessions.js",
     "docs:generate": "node scripts/generate-docs.js",
     "test": "jest --runInBand --forceExit",
     "test:replset": "TEST_REPLSET=1 jest --runInBand --forceExit",

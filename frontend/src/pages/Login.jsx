@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import api, { errCode, errMsg } from '../api';
+import { errCode, errMsg } from '../api';
 import { useAuth, homeFor } from '../auth/AuthContext';
 import Field from '../components/Field';
 import StudentAuthLayout from '../components/StudentAuthLayout';
@@ -19,10 +19,6 @@ export default function Login({ adminOnly = false }) {
   const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
-
-  useEffect(() => {
-    if (adminOnly) api.get('/auth/admin-email').then((response) => setEmail(response.data.data.email)).catch((error) => setMessage(errMsg(error)));
-  }, [adminOnly]);
 
   if (loading) return <div className="center muted">Checking your sign-in…</div>;
   if (!loading && user) {
@@ -99,7 +95,7 @@ export default function Login({ adminOnly = false }) {
               id="admin-email"
               label="Administrator email"
               type="email"
-              autoComplete="username"
+              autoComplete="off"
               value={email}
               maxLength={254}
               onChange={(event) => {

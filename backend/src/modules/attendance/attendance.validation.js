@@ -11,7 +11,10 @@ exports.start = z.object({
 }).strict();
 exports.cancel = z.object({ reason: z.string().trim().min(3).max(500) }).strict();
 // strict(): a client-supplied studentId (proxy attendance attempt) is rejected outright.
-exports.checkIn = z.object({ token: z.string().min(10).max(300) }).strict();
+exports.checkIn = z.object({
+  token: z.string().min(10).max(300),
+  expectedBatchId: objectId.optional(),
+}).strict();
 exports.correct = z.object({
   status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']),
   reason: z.string().trim().min(5, 'A reason of at least 5 characters is required').max(500),

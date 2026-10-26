@@ -24,7 +24,7 @@ export default function History() {
           <p className="muted">Present {e.summary.present} - Late {e.summary.late} - Absent {e.summary.absent} - Excused {e.summary.excused}</p>
           <div className="table-wrap"><table><thead><tr><th>Date</th><th>Session</th><th>Status</th><th>Checked in</th></tr></thead>
             <tbody>{e.sessions.map((s) => (
-              <tr key={s.recordId}><td>{new Date(s.sessionDate).toLocaleDateString()}</td><td>{s.title || '-'}</td><td><Badge value={s.status} /></td>
+              <tr key={s.recordId}><td>{new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', dateStyle: 'medium' }).format(new Date(s.sessionDate))}</td><td>{s.title || '-'}</td><td><Badge value={s.status} /></td>
                 <td>{s.checkInTimestamp ? new Date(s.checkInTimestamp).toLocaleTimeString() : '-'}</td></tr>))}
               {e.sessions.length === 0 && <tr><td colSpan="4" className="muted">No closed sessions yet.</td></tr>}</tbody></table></div>
         </div>

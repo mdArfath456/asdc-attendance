@@ -1,6 +1,6 @@
 # Attendance percentage formula (implemented in `backend/src/utils/percentage.js`)
 
-Per **enrollment**, over sessions with status `CLOSED` (CANCELLED/OPEN/SCHEDULED never count):
+Per **enrollment**, over the single session per course batch per day with status `CLOSED` (CANCELLED/OPEN/SCHEDULED never count). A session is assigned to the calendar day when it started in the configured `TIMEZONE`; it closes no later than that local day’s end. Reopening a closed session on the same day removes only system-generated absences so eligible students can scan.
 
 ```
 D = PRESENT + LATE + ABSENT            (+ EXCUSED when EXCUSED_POLICY=FULL_CREDIT)

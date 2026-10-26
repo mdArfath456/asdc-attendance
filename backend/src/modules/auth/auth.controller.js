@@ -22,7 +22,6 @@ exports.login = asyncHandler(async (req, res) => sendSession(res, await service.
 exports.google = asyncHandler(async (req, res) => sendSession(res, await service.loginWithGoogle(req.body.idToken, ctxOf(req), { adminOnly: req.body.adminOnly }), 'Logged in with Google'));
 exports.registerStudent = asyncHandler(async (req, res) => created(res, await service.registerLocal(req.body, ctxOf(req)), 'Account created'));
 exports.registerGoogleStudent = asyncHandler(async (req, res) => created(res, await service.registerGoogle(req.body, ctxOf(req)), 'Account created'));
-exports.adminEmail = asyncHandler(async (req, res) => ok(res, { email: env.ADMIN_EMAIL }));
 exports.refresh = asyncHandler(async (req, res) => {
   try {
     return sendSession(res, await service.refresh(req.cookies[COOKIE], ctxOf(req)), 'Token refreshed');

@@ -7,6 +7,7 @@ const recordSchema = new mongoose.Schema(
     enrollmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Enrollment', required: true },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', required: true },
+    sessionDate: { type: Date, required: true },
     status: { type: String, enum: ATTENDANCE_STATUS, required: true },
     checkInTimestamp: { type: Date, default: null },
     recordedMethod: { type: String, enum: RECORD_METHOD, required: true },
@@ -17,6 +18,7 @@ const recordSchema = new mongoose.Schema(
   { timestamps: true }
 );
 recordSchema.index({ sessionId: 1, enrollmentId: 1 }, { unique: true });
+recordSchema.index({ enrollmentId: 1, sessionDate: 1 }, { unique: true, name: 'one_attendance_per_enrollment_per_day' });
 recordSchema.index({ studentId: 1, batchId: 1 });
 recordSchema.index({ batchId: 1, status: 1 });
 

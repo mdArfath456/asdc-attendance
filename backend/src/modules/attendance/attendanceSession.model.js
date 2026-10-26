@@ -25,8 +25,16 @@ const sessionSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-// At most one OPEN session per batch.
-sessionSchema.index({ batchId: 1 }, { unique: true, partialFilterExpression: { status: 'OPEN' }, name: 'one_open_session_per_batch' });
+sessionSchema.index(
+  { batchId: 1, sessionDate: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      $or: [{ status: 'SCHEDULED' }, { status: 'OPEN' }, { status: 'CLOSED' }],
+    },
+    name: 'one_session_per_batch_per_day',
+  }
+);
 sessionSchema.index({ batchId: 1, sessionDate: -1 });
 sessionSchema.index({ status: 1, scheduledEnd: 1 });
 

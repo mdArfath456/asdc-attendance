@@ -4,25 +4,46 @@ const AttendanceSession = require('./attendanceSession.model');
 const AttendanceRecord = require('./attendanceRecord.model');
 const Enrollment = require('../enrollments/enrollment.model');
 const qr = require('./qr.service');
+const { sessionDateFor } = require('../../utils/dates');
+
+function alreadyRecordedError(record) {
+  throw new ApiError(409, 'ALREADY_CHECKED_IN', 'Your attendance has already been recorded for today', {
+    status: record.status,
+    checkInTimestamp: record.checkInTimestamp,
+  });
+}
 
 // Student check-in. Identity comes ONLY from the authenticated user (req.user).
-async function checkIn(user, { token }) {
+async function checkIn(user, { token, expectedBatchId }) {
   const now = new Date(); // server-controlled UTC time
   const parsed = qr.parseToken(token); // signature verified -> QR_INVALID otherwise
   const session = await AttendanceSession.findById(parsed.sessionId);
   if (!session) throw new ApiError(400, 'QR_INVALID', 'Invalid QR code');
+  if (expectedBatchId && String(session.batchId) !== String(expectedBatchId)) {
+    throw new ApiError(409, 'COURSE_SELECTION_MISMATCH', 'This QR code belongs to a different selected course');
+  }
+  if (session.sessionDate.getTime() !== sessionDateFor(now).getTime()) {
+    throw new ApiError(409, 'SESSION_DAY_ENDED', 'This attendance session has ended for the day');
+  }
+
+  const enrollment = await Enrollment.findOne({ studentId: user.id, batchId: session.batchId }).sort({ status: 1 });
+  if (enrollment) {
+    const existingToday = await AttendanceRecord.findOne({
+      enrollmentId: enrollment._id,
+      sessionDate: session.sessionDate,
+      status: { $in: ['PRESENT', 'LATE', 'EXCUSED'] },
+    }).select('status checkInTimestamp').lean();
+    if (existingToday) alreadyRecordedError(existingToday);
+  }
 
   if (session.status === 'CLOSED' || session.status === 'CANCELLED') throw new ApiError(409, 'SESSION_CLOSED', `This attendance session is ${session.status.toLowerCase()}`);
   if (session.status !== 'OPEN') throw new ApiError(409, 'SESSION_NOT_OPEN', 'This attendance session is not open yet');
 
   qr.validateAgainstSession(session, parsed, now); // QR_EXPIRED / QR_INVALID (incl. grace window)
 
-  const enrollment = await Enrollment.findOne({ studentId: user.id, batchId: session.batchId, status: 'ACTIVE' });
-  if (!enrollment) {
-    const any = await Enrollment.exists({ studentId: user.id, batchId: session.batchId });
-    throw any
-      ? new ApiError(403, 'ENROLLMENT_INELIGIBLE', 'Your enrollment in this batch is not active')
-      : new ApiError(403, 'BATCH_MISMATCH', 'You are not enrolled in the batch for this session');
+  if (!enrollment) throw new ApiError(403, 'BATCH_MISMATCH', 'You are not enrolled in the batch for this session');
+  if (enrollment.status !== 'ACTIVE' || enrollment.enrolledAt > session.actualStartTime) {
+    throw new ApiError(403, 'ENROLLMENT_INELIGIBLE', 'Your enrollment in this batch was not active when the session started');
   }
 
   const lateCutoff = new Date(session.actualStartTime.getTime() + session.lateThresholdMinutes * 60000);
@@ -31,13 +52,17 @@ async function checkIn(user, { token }) {
   let record;
   try {
     record = await AttendanceRecord.create({
-      sessionId: session._id, enrollmentId: enrollment._id, studentId: user.id, batchId: session.batchId,
+      sessionId: session._id, enrollmentId: enrollment._id, studentId: user.id, batchId: session.batchId, sessionDate: session.sessionDate,
       status, checkInTimestamp: now, recordedMethod: 'QR_SCAN', recordedBy: user.id,
     });
   } catch (e) {
     if (e.code === 11000) {
-      const existing = await AttendanceRecord.findOne({ sessionId: session._id, enrollmentId: enrollment._id }).select('status').lean();
-      throw new ApiError(409, 'ALREADY_CHECKED_IN', 'Attendance already recorded for this session', { status: existing && existing.status });
+      const existing = await AttendanceRecord.findOne({
+        enrollmentId: enrollment._id,
+        sessionDate: session.sessionDate,
+      }).select('status checkInTimestamp').lean();
+      if (existing) alreadyRecordedError(existing);
+      throw new ApiError(409, 'ALREADY_CHECKED_IN', 'Your attendance has already been recorded for today');
     }
     throw e;
   }

@@ -18,7 +18,6 @@ const requireTrustedOrigin = (req, res, next) => {
 
 router.post('/register', registerLimiter, validate({ body: v.register }), ctrl.registerStudent);
 router.post('/register-google', registerLimiter, validate({ body: v.registerGoogle }), ctrl.registerGoogleStudent);
-router.get('/admin-email', ctrl.adminEmail);
 router.post('/login', authLimiter, validate({ body: v.login }), ctrl.login);
 router.post('/google', authLimiter, validate({ body: v.googleLogin }), ctrl.google);
 router.post('/refresh', refreshLimiter, requireTrustedOrigin, ctrl.refresh);

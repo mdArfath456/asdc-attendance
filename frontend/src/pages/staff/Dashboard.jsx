@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const base = user.role === 'TRAINER' ? '/trainer' : '/admin';
   const [courses, setCourses] = useState([]);
-  const [sessionsByCourse, setSessionsByCourse] = useState({});
+  const [todayByCourse, setTodayByCourse] = useState({});
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [cfg, setCfg] = useState(INITIAL);
   const [errors, setErrors] = useState({});
@@ -28,12 +28,12 @@ export default function Dashboard() {
   const load = async () => {
     const response = await api.get('/courses');
     const available = response.data.data.filter((course) => course.status === 'ACTIVE');
-    const sessions = await Promise.all(available.filter((course) => course.batchId).map(async (course) => {
-      const result = await api.get(`/batches/${course.batchId}/attendance-sessions`);
+    const today = await Promise.all(available.filter((course) => course.batchId).map(async (course) => {
+      const result = await api.get(`/batches/${course.batchId}/attendance-sessions/today`);
       return [course._id, result.data.data];
     }));
     setCourses(available);
-    setSessionsByCourse(Object.fromEntries(sessions));
+    setTodayByCourse(Object.fromEntries(today));
     setLoaded(true);
     const requestedCourseId = searchParams.get('courseId');
     if (requestedCourseId) {
@@ -43,8 +43,8 @@ export default function Dashboard() {
   };
   useEffect(() => {
     load().catch((loadError) => { setError(errMsg(loadError)); setLoaded(true); });
-  // Initial data is loaded on mount; search params provide an optional deep link to a course.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Initial data is loaded on mount; search params provide an optional deep link to a course.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const start = async (event) => {
@@ -67,8 +67,26 @@ export default function Dashboard() {
       const response = await api.post(`/batches/${selectedCourse.batchId}/attendance-sessions`, body);
       nav(`${base}/session/${response.data.data.session._id}`);
     } catch (startError) {
-      setError(errCode(startError) === 'SESSION_ALREADY_OPEN' ? 'There is already an open session for this course. Refresh and resume it.' : errMsg(startError));
+      setError(errCode(startError) === 'SESSION_ALREADY_TAKEN_TODAY'
+        ? 'Attendance has already been taken today. View or reopen today’s session below.'
+        : errCode(startError) === 'SESSION_ALREADY_OPEN'
+          ? 'There is already an open session for this course. Resume it below.'
+          : errMsg(startError));
       setSelectedCourse(null);
+      load().catch((loadError) => setError(errMsg(loadError)));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reopen = async (session) => {
+    setError('');
+    setBusy(true);
+    try {
+      await api.post(`/attendance-sessions/${session._id}/reopen`);
+      nav(`${base}/session/${session._id}`);
+    } catch (reopenError) {
+      setError(errMsg(reopenError));
       load().catch((loadError) => setError(errMsg(loadError)));
     } finally {
       setBusy(false);
@@ -93,17 +111,34 @@ export default function Dashboard() {
       )}
       <div className="grid attendance-course-grid">
         {courses.map((course) => {
-          const sessions = sessionsByCourse[course._id] || [];
-          const open = sessions.find((session) => session.status === 'OPEN');
+          const todaySession = todayByCourse[course._id];
+          const open = todaySession?.status === 'OPEN';
+          const closed = todaySession?.status === 'CLOSED';
           return (
             <article className="card attendance-course-card" key={course._id}>
               <p className="eyebrow">{course.code}</p>
               <h2><Link to={`${base}/courses/${course._id}`}>{course.name}</Link></h2>
               {course.description && <p className="muted">{course.description}</p>}
               <p className="enrolled-count"><b>{course.enrolledCount || 0}</b> enrolled students</p>
-              {open
-                ? <Link className="btn resume-btn" to={`${base}/session/${open._id}`}>Resume session</Link>
-                : <button className="btn start-session-btn" disabled={!course.batchId} onClick={() => { setSelectedCourse(course); setCfg(INITIAL); setErrors({}); }}>Start attendance session</button>}
+              {open ? (
+                <>
+                  <p className="session-state session-live">Live</p>
+                  <Link className="btn resume-btn" to={`${base}/session/${todaySession._id}`}>Resume session · Open QR</Link>
+                </>
+              ) : closed ? (
+                <>
+                  <p className="session-state">Taken today</p>
+                  <div className="row">
+                    <Link className="btn ghost" to={`${base}/session/${todaySession._id}`}>View attendance</Link>
+                    <button className="btn" disabled={busy} onClick={() => reopen(todaySession)}>{busy ? 'Reopening…' : 'Reopen today’s session'}</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="session-state">Not started</p>
+                  <button className="btn start-session-btn" disabled={!course.batchId} onClick={() => { setSelectedCourse(course); setCfg(INITIAL); setErrors({}); }}>Start attendance session</button>
+                </>
+              )}
             </article>
           );
         })}

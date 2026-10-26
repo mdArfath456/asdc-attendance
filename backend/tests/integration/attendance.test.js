@@ -6,6 +6,9 @@ const AttendanceSession = require('../../src/modules/attendance/attendanceSessio
 const AttendanceRecord = require('../../src/modules/attendance/attendanceRecord.model');
 const Enrollment = require('../../src/modules/enrollments/enrollment.model');
 const AuditLog = require('../../src/modules/audit/auditLog.model');
+const sessionsService = require('../../src/modules/attendance/session.service');
+const checkInService = require('../../src/modules/attendance/checkin.service');
+const { sessionDateFor } = require('../../src/utils/dates');
 
 let admin; let trainer; let otherTrainer; let noManageTrainer; let course;
 beforeAll(async () => {
@@ -54,11 +57,40 @@ describe('session start / authorisation', () => {
       expect((await close(u, sessionId)).status).toBe(403);
     }
   });
-  test('only one OPEN session per batch (409)', async () => {
-    const { batch } = await open(admin);
+  test('starting again today resumes the open session', async () => {
+    const { batch, sessionId } = await open(admin);
+    const again = await start(admin, batch);
+    expect(again.status).toBe(200);
+    expect(again.body.data.resumed).toBe(true);
+    expect(again.body.data.session._id).toBe(sessionId);
+    expect(again.body.data.qr.token).toBeTruthy();
+  });
+  test('a closed session blocks a second start on the same day', async () => {
+    const { batch, sessionId } = await open(admin);
+    await close(admin, sessionId);
     const again = await start(admin, batch);
     expect(again.status).toBe(409);
-    expect(again.body.error.code).toBe('SESSION_ALREADY_OPEN');
+    expect(again.body.error.code).toBe('SESSION_ALREADY_TAKEN_TODAY');
+    expect(again.body.error.details.sessionId).toBe(sessionId);
+  });
+  test('staff can query today’s session while students only see their own today state', async () => {
+    const { batch, students, token, sessionId } = await open();
+    const staffToday = await request(app)
+      .get(`/api/v1/batches/${batch._id}/attendance-sessions/today`)
+      .set('Authorization', f.auth(admin));
+    expect(staffToday.status).toBe(200);
+    expect(String(staffToday.body.data._id)).toBe(sessionId);
+
+    const studentToday = () => request(app)
+      .get('/api/v1/attendance/today')
+      .set('Authorization', f.auth(students[0]));
+    expect((await studentToday()).body.data.courses[0].state).toBe('NOT_RECORDED');
+    expect((await request(app).get('/api/v1/attendance/today').set('Authorization', f.auth(admin))).status).toBe(403);
+    expect((await request(app).get('/api/v1/attendance/today').set('Authorization', f.auth(trainer))).status).toBe(403);
+    await scan(students[0], token);
+    const recorded = (await studentToday()).body.data.courses[0];
+    expect(recorded.state).toBe('RECORDED');
+    expect(recorded.record.status).toBe('PRESENT');
   });
   test('unauthenticated requests are rejected', async () => {
     expect((await request(app).post('/api/v1/attendance/check-in').send({ token: 'x'.repeat(20) })).status).toBe(401);
@@ -129,7 +161,19 @@ describe('check-in', () => {
     expect(codes.filter((c) => c === 201)).toHaveLength(1);
     expect(codes.filter((c) => c === 409)).toHaveLength(5);
     expect(results.find((r) => r.status === 409).body.error.code).toBe('ALREADY_CHECKED_IN');
+    expect(results.find((r) => r.status === 409).body.message).toBe('Your attendance has already been recorded for today');
     expect(await AttendanceRecord.countDocuments({ sessionId, studentId: students[0]._id })).toBe(1);
+  });
+  test('a student can check in once for each of two different courses', async () => {
+    const first = await open();
+    const student = first.students[0];
+    const otherCourse = await f.createCourse();
+    const otherBatch = await f.createBatch(otherCourse);
+    await f.enroll(student, otherBatch);
+    const second = await start(admin, otherBatch);
+    expect((await scan(student, first.token)).status).toBe(201);
+    expect((await scan(student, second.body.data.qr.token)).status).toBe(201);
+    expect(await AttendanceRecord.countDocuments({ studentId: student._id })).toBe(2);
   });
   test('14. QR rotation increments metadata without creating sessions', async () => {
     const { sessionId } = await open();
@@ -227,12 +271,70 @@ describe('closing, corrections, history', () => {
     const sc = await scenario();
     const s1 = await start(admin, sc.batch);
     await scan(sc.students[0], s1.body.data.qr.token);
-    await close(admin, s1.body.data.session._id);
-    const s2 = await start(admin, sc.batch);
-    const cancel = await request(app).post(`/api/v1/attendance-sessions/${s2.body.data.session._id}/cancel`).set('Authorization', f.auth(admin)).send({ reason: 'public holiday' });
+    const cancel = await request(app).post(`/api/v1/attendance-sessions/${s1.body.data.session._id}/cancel`).set('Authorization', f.auth(admin)).send({ reason: 'public holiday' });
     expect(cancel.status).toBe(200);
+    expect(await AttendanceRecord.countDocuments({ sessionId: s1.body.data.session._id })).toBe(0);
+    const s2 = await start(admin, sc.batch);
+    expect(s2.status).toBe(201);
+    await scan(sc.students[0], s2.body.data.qr.token);
+    await close(admin, s2.body.data.session._id);
     const hist = await request(app).get('/api/v1/attendance/my-history').set('Authorization', f.auth(sc.students[0]));
     expect(hist.body.data.enrollments[0].summary.percentage).toBe(100);
+  });
+  test('reopening removes only auto-absent records and allows scanning again', async () => {
+    const { students, token, sessionId } = await open();
+    await scan(students[0], token);
+    await close(admin, sessionId);
+    const absent = await AttendanceRecord.findOne({ sessionId, studentId: students[1]._id });
+    await request(app)
+      .patch(`/api/v1/attendance-records/${absent._id}`)
+      .set('Authorization', f.auth(admin))
+      .send({ status: 'EXCUSED', reason: 'Approved absence' });
+    const reopened = await request(app)
+      .post(`/api/v1/attendance-sessions/${sessionId}/reopen`)
+      .set('Authorization', f.auth(admin));
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.data.session.status).toBe('OPEN');
+    expect(reopened.body.data.removedAutoAbsentRecords).toBe(1);
+    expect(await AttendanceRecord.countDocuments({ sessionId, studentId: students[0]._id, recordedMethod: 'QR_SCAN' })).toBe(1);
+    expect((await AttendanceRecord.findOne({ sessionId, studentId: students[1]._id })).status).toBe('EXCUSED');
+    expect(await AttendanceRecord.exists({ sessionId, studentId: students[2]._id })).toBeFalsy();
+    expect((await scan(students[2], reopened.body.data.qr.token)).status).toBe(201);
+  });
+  test('auto-close closes a session whose start day has ended even if its requested duration has not', async () => {
+    const { sessionId } = await open();
+    const yesterday = sessionDateFor(new Date(Date.now() - 2 * 86400000));
+    await AttendanceSession.updateOne(
+      { _id: sessionId },
+      { $set: { sessionDate: yesterday, scheduledEnd: new Date(Date.now() + 86400000) } }
+    );
+    await sessionsService.autoCloseExpiredSessions();
+    expect((await AttendanceSession.findById(sessionId)).status).toBe('CLOSED');
+  });
+  test('a session keeps its local start date across midnight and the next day permits a new scan', async () => {
+    const sc = await scenario();
+    const RealDate = global.Date;
+    const clock = { now: new RealDate('2026-10-26T18:29:30.000Z') };
+    global.Date = class extends RealDate {
+      constructor(...args) { super(...(args.length ? args : [clock.now])); }
+      static now() { return clock.now.getTime(); }
+    };
+    try {
+      const first = await sessionsService.startSession(admin, String(sc.batch._id));
+      expect(first.session.sessionDate.toISOString()).toBe('2026-10-26T00:00:00.000Z');
+      expect(first.session.scheduledEnd.toISOString()).toBe('2026-10-26T18:29:59.999Z');
+
+      clock.now = new RealDate('2026-10-26T18:30:01.000Z');
+      await sessionsService.autoCloseExpiredSessions();
+      expect((await AttendanceSession.findById(first.session._id)).status).toBe('CLOSED');
+
+      const nextDay = await sessionsService.startSession(admin, String(sc.batch._id));
+      expect(nextDay.session.sessionDate.toISOString()).toBe('2026-10-27T00:00:00.000Z');
+      const result = await checkInService.checkIn(sc.students[0], { token: nextDay.qr.token });
+      expect(result.status).toBe('PRESENT');
+    } finally {
+      global.Date = RealDate;
+    }
   });
 });
 

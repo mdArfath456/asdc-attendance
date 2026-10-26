@@ -11,12 +11,18 @@ const MESSAGES = {
   SESSION_NOT_OPEN: 'This attendance session is not open yet.',
   BATCH_MISMATCH: 'You are not enrolled in the course for this session.',
   ENROLLMENT_INELIGIBLE: 'Your enrollment in this course is not active. Contact your administrator.',
-  ALREADY_CHECKED_IN: 'Your attendance is already recorded for this session.',
+  ALREADY_CHECKED_IN: 'Your attendance has already been recorded for today',
+  COURSE_SELECTION_MISMATCH: 'This QR code belongs to a different selected course.',
+  SESSION_DAY_ENDED: 'This attendance session has ended for the day.',
 };
 
 export default function Scan() {
   const { user } = useAuth();
   const [phase, setPhase] = useState('idle'); // idle | scanning | submitting | done
+  const [today, setToday] = useState(null);
+  const [loadingToday, setLoadingToday] = useState(true);
+  const [todayError, setTodayError] = useState('');
+  const [selectedEnrollment, setSelectedEnrollment] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [cams, setCams] = useState([]);
@@ -32,20 +38,47 @@ export default function Scan() {
     if (s) { try { if (s.isScanning) await s.stop(); s.clear(); } catch (e) { /* ignore */ } }
   }, []);
 
-  const submit = useCallback(async (token) => {
+  const loadToday = useCallback(async () => {
+    setTodayError('');
+    const response = await api.get('/attendance/today');
+    const data = response.data.data;
+    setToday(data);
+    return data;
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    api.get('/attendance/today')
+      .then((response) => { if (mounted) setToday(response.data.data); })
+      .catch((loadError) => { if (mounted) setTodayError(errMsg(loadError)); })
+      .finally(() => { if (mounted) setLoadingToday(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  const submit = useCallback(async (token, expectedBatchId) => {
     setPhase('submitting');
     try {
-      const r = await api.post('/attendance/check-in', { token });
+      const r = await api.post('/attendance/check-in', { token, expectedBatchId });
       setResult(r.data.data);
+      loadToday().catch((loadError) => setTodayError(errMsg(loadError)));
     } catch (e) {
       const code = errCode(e);
-      setError({ code, message: MESSAGES[code] || errMsg(e), status: e.response && e.response.data && e.response.data.error && e.response.data.error.details && e.response.data.error.details.status });
+      const details = e.response?.data?.error?.details;
+      setError({ code, message: MESSAGES[code] || errMsg(e), status: details?.status, checkInTimestamp: details?.checkInTimestamp });
+      if (code === 'ALREADY_CHECKED_IN') loadToday().catch((loadError) => setTodayError(errMsg(loadError)));
     } finally { setPhase('done'); busy.current = false; }
-  }, []);
+  }, [loadToday]);
 
   const start = useCallback(async (idx = camIdx) => {
     setError(null); setResult(null); setBlocked(false);
     try {
+      const fresh = await loadToday();
+      const course = fresh.courses.find((item) => item.enrollmentId === selectedEnrollment);
+      if (!course || course.state !== 'NOT_RECORDED' || !course.session || course.session.status !== 'OPEN') {
+        setError({ message: 'Choose a course with an open session before scanning.' });
+        setPhase('idle');
+        return;
+      }
       const list = await Html5Qrcode.getCameras();
       if (!list.length) throw new Error('No camera found on this device.');
       setCams(list);
@@ -59,7 +92,7 @@ export default function Scan() {
         if (busy.current) return;
         busy.current = true;
         await stop();
-        submit(text);
+        submit(text, course.batch?.id);
       }, () => {});
     } catch (e) {
       setPhase('idle');
@@ -67,7 +100,7 @@ export default function Scan() {
       if (/permission|denied|NotAllowed/i.test(msg) || (e && e.name === 'NotAllowedError')) setBlocked(true);
       else setError({ message: msg });
     }
-  }, [camIdx, stop, submit]);
+  }, [camIdx, loadToday, selectedEnrollment, stop, submit]);
 
   useEffect(() => () => { stop(); }, [stop]);
 
@@ -78,13 +111,43 @@ export default function Scan() {
       <h1>Scan attendance QR</h1>
       {user?.requestedCourseName && <div className="success" role="status">Waiting for the admin to add you to {user.requestedCourseName}.</div>}
       {insecure && <div className="error">Camera access needs HTTPS. Open the secure (https://) address of this site.</div>}
+      {todayError && <div className="error" role="alert">{todayError}</div>}
+      {loadingToday && <div className="card center muted">Checking today’s attendance…</div>}
+      {!loadingToday && today && phase === 'idle' && (
+        <section aria-label="Today's course attendance">
+          <h2>Today’s courses</h2>
+          {today.courses.length === 0 && <div className="card muted">You are not enrolled in an active course yet.</div>}
+          <div className="grid cols-2">
+            {today.courses.map((course) => {
+              const canScan = course.state === 'NOT_RECORDED' && course.session?.status === 'OPEN';
+              const recorded = course.state === 'RECORDED';
+              return (
+                <article className={`card today-course-card${selectedEnrollment === course.enrollmentId ? ' selected' : ''}`} key={course.enrollmentId}>
+                  <h3>{course.course?.name || course.batch?.name || 'Course'}</h3>
+                  {course.state === 'RECORDED' && (
+                    <div className="success" role="status">
+                      Attendance recorded for today: <b>{course.record.status}</b>
+                      {course.record.checkInTimestamp && <> at {new Date(course.record.checkInTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>}
+                    </div>
+                  )}
+                  {course.state === 'NOT_RECORDED' && <p className="muted">Not recorded yet</p>}
+                  {course.state === 'NO_SESSION' && <p className="muted">No session today</p>}
+                  {course.state === 'SESSION_CLOSED' && <p className="muted">Today’s session has closed; attendance was not recorded.</p>}
+                  {canScan && <button type="button" className="btn ghost small" aria-pressed={selectedEnrollment === course.enrollmentId} onClick={() => setSelectedEnrollment(course.enrollmentId)}>{selectedEnrollment === course.enrollmentId ? 'Selected course' : 'Select course'}</button>}
+                  {recorded && <p className="muted">You can scan again tomorrow.</p>}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
       {blocked && (
         <div className="error">
           Camera access is blocked. Allow the camera for this site in your browser settings (address bar lock icon &rarr; Site settings &rarr; Camera &rarr; Allow), then tap Start again.
         </div>
       )}
-      {phase === 'idle' && (
-        <div className="card center"><p>Point your camera at the QR code shown by your trainer.</p><button className="btn" onClick={() => start()}>Start scanning</button></div>
+      {phase === 'idle' && selectedEnrollment && today?.courses.some((course) => course.enrollmentId === selectedEnrollment && course.state === 'NOT_RECORDED' && course.session?.status === 'OPEN') && (
+        <div className="card center"><p>Point your camera at the QR code for the selected course.</p><button className="btn" onClick={() => start()}>Start scanning</button></div>
       )}
       {phase === 'scanning' && (
         <div className="card">
@@ -108,7 +171,12 @@ export default function Scan() {
           <div className={`big ${error.code === 'ALREADY_CHECKED_IN' ? 'scan-ok' : 'scan-bad'}`}>{error.code === 'ALREADY_CHECKED_IN' ? '✔' : '✖'}</div>
           <h2>{error.code === 'ALREADY_CHECKED_IN' ? 'Already checked in' : 'Could not record attendance'}</h2>
           <p>{error.message}</p>{error.status && <Badge value={error.status} />}
-          <div style={{ marginTop: '1rem' }}><button className="btn" onClick={() => start()}>Scan again</button></div>
+          {error.checkInTimestamp && <p className="muted">Recorded at {new Date(error.checkInTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>}
+          <div style={{ marginTop: '1rem' }}>
+            {error.code === 'ALREADY_CHECKED_IN'
+              ? <button className="btn ghost" onClick={() => { setError(null); setPhase('idle'); }}>Return to courses</button>
+              : <button className="btn" onClick={() => start()}>Scan again</button>}
+          </div>
         </div>
       )}
       {phase === 'done' && result && <div className="center"><button className="btn ghost" onClick={() => { setResult(null); setPhase('idle'); }}>Done</button></div>}

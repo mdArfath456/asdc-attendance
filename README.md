@@ -34,6 +34,17 @@ NODE_ENV=production npm start             # API + built web app on PORT (default
 Set `NODE_ENV=production`, `SITE_URL`, `CLIENT_ORIGINS` to your public https URL. Put it behind your host's TLS (needed for phone cameras).
 The app starts from a blank database. On startup it creates or updates the single admin account for `ADMIN_EMAIL`; no dummy users or seed accounts are created.
 If old dummy course data is still in the database, run `npm run reset-db -- --dummy --yes` from `backend/` to remove it.
+For test data, run `npm run reset-db -- --dummy --yes` from `backend/`.
+
+### Daily attendance rules and existing data
+Attendance is recorded once per student enrollment per calendar day, and there is one session per course batch per day. Sessions are assigned to their start date in `TIMEZONE` (default `Asia/Kolkata`) and are automatically closed by that day's end. A closed session can be reopened on the same day; only system-generated absent records are removed.
+
+Before deploying these daily uniqueness constraints to a database with existing sessions, run this migration from `backend/` while the API is stopped:
+```
+npm run merge-same-day-sessions                 # dry run; no writes
+npm run merge-same-day-sessions -- --yes         # merge data and create daily unique indexes
+```
+Review the dry-run counts and take a database backup before applying. The migration keeps the earliest non-cancelled session per batch/day, preserves the best record per enrollment, and discards attendance from cancelled sessions.
 
 ## Removing dummy data
 Run these commands from `backend/`:
@@ -56,7 +67,7 @@ Covers all 15 acceptance criteria: Google link/reject (verifyIdToken mocked), RB
 ## Key design points
 - Identity for check-in comes only from the JWT; `studentId` in the body is rejected (strict zod schema).
 - QR token `ASDC1.<sessionId>.<version>.<HMAC>`: version N valid R+G s after rotation, N-1 only G s; rotation updates metadata only.
-- Unique indexes: `{sessionId, enrollmentId}` on records, active `{batchId, studentId}` enrollments, one OPEN session per batch, sparse unique `googleId`.
+- Unique indexes: `{sessionId, enrollmentId}` and `{enrollmentId, sessionDate}` on records, `{batchId, sessionDate}` for SCHEDULED/OPEN/CLOSED sessions (one session per course per day), active `{batchId, studentId}` enrollments, sparse unique `googleId`.
 - Multi-step operations (session close + ABSENT generation, enrollment transfer, manual correction + audit) use a MongoDB transaction automatically when the server supports it (replica set/Atlas); on a plain MongoDB they use atomic gates, idempotent upserts and rollback on failure. Both paths are tested.
 - Auto-close of expired sessions runs every 30 s in the API process.
 - Access token lives in memory only; refresh token is an httpOnly cookie with rotation + reuse detection.
