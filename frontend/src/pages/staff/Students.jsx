@@ -122,7 +122,7 @@ export default function Students() {
             <h3>{group.requestedCourseName} <span className="muted">({group.count})</span></h3>
             <ul className="requested-students">{group.students.map((student) => <li key={student.id}>{student.name} <span className="muted">({student.email})</span></li>)}</ul>
             <div className="requested-actions">
-              <form noValidate onSubmit={(event) => createAndEnroll(event, group)}>
+              <form className="requested-action" noValidate onSubmit={(event) => createAndEnroll(event, group)}>
                 <Field
                   ref={(element) => { codeRefs.current[group.requestedCourseName] = element; }}
                   id={`requested-code-${group.requestedCourseName}`}
@@ -140,7 +140,7 @@ export default function Students() {
                 />
                 <button className="btn small" disabled={busy === group.requestedCourseName}>{busy === group.requestedCourseName ? 'Working…' : 'Create course and enroll'}</button>
               </form>
-              <div>
+              <div className="requested-action">
                 <label htmlFor={`requested-existing-${group.requestedCourseName}`}>Assign to existing course</label>
                 <select id={`requested-existing-${group.requestedCourseName}`} value={targets[`requested:${group.requestedCourseName}`] || ''} onChange={(event) => setTargets({ ...targets, [`requested:${group.requestedCourseName}`]: event.target.value })}>
                   <option value="">Choose a course</option>
