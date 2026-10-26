@@ -1,5 +1,7 @@
 const ApiError = require('../../utils/ApiError');
 const User = require('./user.model');
+const Enrollment = require('../enrollments/enrollment.model');
+const { ensureStudentId } = require('./studentId.service');
 const audit = require('../audit/audit.service');
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -49,4 +51,30 @@ async function setPreferences(actor, { themePreference }) {
   return user;
 }
 
-module.exports = { getById, list, setStatus, setPreferences };
+async function getIdCard(userId) {
+  let student = await User.findOne({ _id: userId, role: 'STUDENT' });
+  if (!student) throw new ApiError(404, 'STUDENT_NOT_FOUND', 'Student account not found');
+  student = await ensureStudentId(student);
+
+  const enrollments = await Enrollment.find({ studentId: student._id, status: 'ACTIVE' })
+    .populate('courseId', 'name code')
+    .populate('batchId', 'name')
+    .sort({ enrolledAt: 1 })
+    .lean();
+
+  return {
+    studentId: student.studentId,
+    name: student.name,
+    email: student.email,
+    mobileNumber: student.mobileNumber || null,
+    fatherName: student.fatherName || null,
+    motherName: student.motherName || null,
+    enrollments: enrollments.map((enrollment) => ({
+      id: String(enrollment._id),
+      course: enrollment.courseId ? { name: enrollment.courseId.name, code: enrollment.courseId.code } : null,
+      batch: enrollment.batchId ? { name: enrollment.batchId.name } : null,
+    })),
+  };
+}
+
+module.exports = { getById, list, setStatus, setPreferences, getIdCard };

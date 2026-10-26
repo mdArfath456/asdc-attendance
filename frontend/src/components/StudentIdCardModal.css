@@ -1,0 +1,171 @@
+.id-card-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:30;
+  display:grid;
+  place-items:center;
+  padding:1rem;
+  overflow-y:auto;
+  background:rgba(15,23,42,.62);
+  -webkit-backdrop-filter:blur(7px);
+  backdrop-filter:blur(7px);
+}
+
+.id-card-dialog {
+  width:min(100%, 520px);
+  max-height:calc(100dvh - 2rem);
+  overflow-y:auto;
+  padding:clamp(1.25rem, 4vw, 2rem);
+  border:1px solid #e2e8f0;
+  border-radius:1.4rem;
+  background:#fff;
+  color:#0f172a;
+  box-shadow:0 25px 80px rgba(2,6,23,.3);
+}
+
+.id-card-header {
+  padding-bottom:1.2rem;
+  border-bottom:1px solid #e2e8f0;
+  text-align:center;
+}
+
+.id-card-eyebrow {
+  margin:0 0 .55rem;
+  color:#1d4ed8;
+  font-size:.75rem;
+  font-weight:800;
+  letter-spacing:.12em;
+}
+
+.id-card-header h2 {
+  margin:0;
+  font-size:1.65rem;
+  line-height:1.25;
+}
+
+.id-card-course {
+  margin:.25rem 0 0;
+  color:#64748b;
+  font-weight:600;
+  overflow-wrap:anywhere;
+}
+
+.id-card-enrollment {
+  display:grid;
+  gap:.25rem;
+  width:min(100%, 340px);
+  margin:.5rem auto 0;
+  color:#64748b;
+  font-size:.8rem;
+  text-align:left;
+}
+
+.id-card-number {
+  display:grid;
+  gap:.35rem;
+  margin:1.2rem 0 1rem;
+  padding:1rem .75rem;
+  border:1px solid #bfdbfe;
+  border-radius:1rem;
+  background:#f5faff;
+  text-align:center;
+}
+
+.id-card-number span {
+  color:#1e3a8a;
+  font-size:.8rem;
+  font-weight:800;
+  letter-spacing:.08em;
+}
+
+.id-card-number strong {
+  color:#1d4ed8;
+  font-size:clamp(1.65rem, 7vw, 2.35rem);
+  letter-spacing:.08em;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+
+.id-card-details {
+  margin:0;
+}
+
+.id-card-details > div {
+  display:grid;
+  grid-template-columns:minmax(110px, .8fr) minmax(0, 1.2fr);
+  gap:.75rem;
+  padding:.7rem 0;
+  border-bottom:1px solid #eef2f7;
+}
+
+.id-card-details dt {
+  color:#64748b;
+  font-weight:600;
+}
+
+.id-card-details dd {
+  margin:0;
+  text-align:right;
+  font-weight:650;
+  overflow-wrap:anywhere;
+}
+
+.id-card-close {
+  width:100%;
+  min-height:50px;
+  margin-top:1.2rem;
+  padding:.7rem 1rem;
+  border:1px solid #0f172a;
+  border-radius:.8rem;
+  background:#0f172a;
+  color:#fff;
+  font:inherit;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.id-card-close:hover {
+  background:#1e293b;
+}
+
+.id-card-close:focus-visible {
+  outline:3px solid rgba(37,99,235,.45);
+  outline-offset:3px;
+}
+
+.id-card-message {
+  min-height:180px;
+  display:grid;
+  place-content:center;
+  justify-items:center;
+  gap:.5rem;
+  color:#475569;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+
+.id-card-message p {
+  margin:0 0 .5rem;
+}
+
+@media (max-width:480px) {
+  .id-card-backdrop {
+    padding:max(.65rem, env(safe-area-inset-top)) max(.65rem, env(safe-area-inset-right)) max(.65rem, env(safe-area-inset-bottom)) max(.65rem, env(safe-area-inset-left));
+  }
+
+  .id-card-dialog {
+    max-height:calc(100dvh - 1.3rem);
+    padding:1.15rem;
+    border-radius:1.1rem;
+  }
+
+  .id-card-header h2 {
+    font-size:1.4rem;
+  }
+
+  .id-card-details > div {
+    grid-template-columns:minmax(95px, .8fr) minmax(0, 1.2fr);
+    gap:.5rem;
+    font-size:.9rem;
+  }
+}

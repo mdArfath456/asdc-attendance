@@ -8,11 +8,18 @@ export const strongPassword = z.string().min(12).max(128, 'Password must be 128 
 
 export const registerNameSchema = z.string().trim().min(2, 'Enter your name').max(120);
 export const registerEmailSchema = z.string().trim().toLowerCase().email('Enter a valid email').max(254);
+const profileFields = {
+  mobileNumber: z.string().trim().max(32).refine((value) => !value || (/^[+]?[0-9\s().-]+$/.test(value) && value.replace(/\D/g, '').length >= 7), 'Enter a valid mobile number').optional(),
+  fatherName: z.string().trim().max(120).refine((value) => !value || (value.length >= 2 && !/[<>]/.test(value)), 'Enter a valid name').optional(),
+  motherName: z.string().trim().max(120).refine((value) => !value || (value.length >= 2 && !/[<>]/.test(value)), 'Enter a valid name').optional(),
+};
+export const studentProfileSchema = z.object(profileFields);
 
 export const registerSchema = z.object({
   name: registerNameSchema,
   email: registerEmailSchema,
   password: strongPassword,
+  ...profileFields,
   courseChoice: z.string().min(1, 'Choose a course'),
   requestedCourseName: z.string().trim().min(2, 'Enter a course name').max(80, 'Course names must be 80 characters or fewer').refine((name) => !/[<>]/.test(name), 'Course name cannot contain markup characters').optional(),
 }).superRefine((value, ctx) => {
@@ -69,4 +76,12 @@ export function registrationCoursePayload(choice, requestedCourseName) {
   return choice === 'OTHER'
     ? { requestedCourseName: requestedCourseName.trim() }
     : { courseId: choice };
+}
+
+export function studentProfilePayload(values) {
+  return Object.fromEntries(
+    ['mobileNumber', 'fatherName', 'motherName']
+      .filter((key) => values[key]?.trim())
+      .map((key) => [key, values[key].trim()])
+  );
 }

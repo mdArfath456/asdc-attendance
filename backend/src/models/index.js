@@ -1,5 +1,6 @@
 // Registers every Mongoose model (used by db.js to build indexes).
 require('../modules/users/user.model');
+require('../modules/users/studentIdCounter.model');
 require('../modules/courses/course.model');
 require('../modules/batches/batch.model');
 require('../modules/batches/trainerAssignment.model');

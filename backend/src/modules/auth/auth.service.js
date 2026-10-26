@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const env = require('../../config/env');
 const ApiError = require('../../utils/ApiError');
 const User = require('../users/user.model');
+const { ensureStudentId, nextStudentId } = require('../users/studentId.service');
 const RefreshToken = require('./refreshToken.model');
 const audit = require('../audit/audit.service');
 const { verifyPassword, dummyHash } = require('./password');
@@ -76,8 +77,9 @@ async function loginLocal({ email, password, adminOnly = false }, ctx) {
     throw new ApiError(403, 'NOT_ADMIN', 'You do not have access to the admin area');
   }
   if (user.status !== 'ACTIVE') throw new ApiError(403, 'ACCOUNT_INACTIVE', 'Your account is not active');
-  const tokens = await issueTokens(user, ctx);
-  return { user, ...tokens };
+  const signedInUser = user.role === 'STUDENT' ? await ensureStudentId(user) : user;
+  const tokens = await issueTokens(signedInUser, ctx);
+  return { user: signedInUser, ...tokens };
 }
 
 async function verifyGoogleClaims(idToken) {
@@ -124,8 +126,9 @@ async function loginWithGoogle(idToken, ctx, { adminOnly = false } = {}) {
     throw new ApiError(403, 'NOT_ADMIN', 'This account is not an admin');
   }
   if (user.status !== 'ACTIVE') throw new ApiError(403, 'ACCOUNT_INACTIVE', 'Your account is not active');
-  const tokens = await issueTokens(user, ctx);
-  return { user, ...tokens };
+  const signedInUser = user.role === 'STUDENT' ? await ensureStudentId(user) : user;
+  const tokens = await issueTokens(signedInUser, ctx);
+  return { user: signedInUser, ...tokens };
 }
 
 async function registerLocal(input, ctx) {
@@ -141,8 +144,12 @@ async function registerLocal(input, ctx) {
       name: input.name,
       email,
       role: 'STUDENT',
+      studentId: await nextStudentId(),
       authProviders: ['LOCAL'],
       passwordHash: await require('./password').hashPassword(input.password),
+      ...(input.mobileNumber ? { mobileNumber: input.mobileNumber } : {}),
+      ...(input.fatherName ? { fatherName: input.fatherName } : {}),
+      ...(input.motherName ? { motherName: input.motherName } : {}),
       ...(requestedCourseName ? { requestedCourseName } : {}),
     }], options);
     if (course) {
@@ -159,7 +166,7 @@ async function registerLocal(input, ctx) {
   });
 }
 
-async function registerGoogle({ idToken, courseId, requestedCourseName }, ctx) {
+async function registerGoogle({ idToken, courseId, requestedCourseName, mobileNumber, fatherName, motherName }, ctx) {
   const claims = await verifyGoogleClaims(idToken);
   if (claims.email === env.ADMIN_EMAIL) throw new ApiError(403, 'ADMIN_REGISTRATION_FORBIDDEN', 'This email is reserved for the administrator');
   if (await User.exists({ $or: [{ email: claims.email }, { googleId: claims.sub }] })) {
@@ -174,9 +181,13 @@ async function registerGoogle({ idToken, courseId, requestedCourseName }, ctx) {
       name: String(claims.name || claims.email.split('@')[0]).trim().slice(0, 120) || claims.email.split('@')[0],
       email: claims.email,
       role: 'STUDENT',
+      studentId: await nextStudentId(),
       googleId: claims.sub,
       authProviders: ['GOOGLE'],
       avatarUrl: claims.picture,
+      ...(mobileNumber ? { mobileNumber } : {}),
+      ...(fatherName ? { fatherName } : {}),
+      ...(motherName ? { motherName } : {}),
       ...(cleanRequestedCourseName ? { requestedCourseName: cleanRequestedCourseName } : {}),
     }], options);
     if (course) {

@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "reset-db": "node scripts/reset-database.js",
     "merge-same-day-sessions": "node scripts/merge-same-day-sessions.js",
+    "backfill-student-ids": "node scripts/backfill-student-ids.js",
     "docs:generate": "node scripts/generate-docs.js",
     "test": "jest --runInBand --forceExit",
     "seed-admin": "node scripts/seed-admin.js",

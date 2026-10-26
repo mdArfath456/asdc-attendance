@@ -10,6 +10,7 @@ const env = require('./config/env');
 const routes = require('./routes');
 const asyncHandler = require('./utils/asyncHandler');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
+const performanceDiagnostics = require('./middleware/performance');
 const Course = require('./modules/courses/course.model');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(performanceDiagnostics);
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(mongoSanitize()); // strips $ and . operators from body/params/query

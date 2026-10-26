@@ -20,3 +20,7 @@ exports.correct = z.object({
   reason: z.string().trim().min(5, 'A reason of at least 5 characters is required').max(500),
 }).strict();
 exports.emptyQuery = z.object({}).strict();
+exports.historyQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+}).strict();

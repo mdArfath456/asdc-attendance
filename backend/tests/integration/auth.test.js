@@ -81,6 +81,69 @@ describe('local auth', () => {
     const reserved = await request(app).post('/api/v1/auth/register').send({ ...body, email: process.env.ADMIN_EMAIL });
     expect(reserved.status).toBe(403);
   });
+  test('student registration assigns a unique permanent ID and accepts optional card details', async () => {
+    const register = (email) => request(app).post('/api/v1/auth/register').send({
+      name: 'ID Card Learner',
+      email,
+      password: 'StrongPassword9!',
+      requestedCourseName: 'Requested course group',
+      mobileNumber: '+91 83747 60459',
+      fatherName: 'Parent One',
+      motherName: 'Parent Two',
+    });
+    const [first, second] = await Promise.all([
+      register('id-card-one@example.test'),
+      register('id-card-two@example.test'),
+    ]);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.data.user.studentId).toMatch(/^ASDC-\d{4,}$/);
+    expect(second.body.data.user.studentId).toMatch(/^ASDC-\d{4,}$/);
+    expect(first.body.data.user.studentId).not.toBe(second.body.data.user.studentId);
+    const saved = await User.findById(first.body.data.user.id);
+    expect(saved.studentId).toBe(first.body.data.user.studentId);
+    expect(saved.mobileNumber).toBe('+91 83747 60459');
+    expect(saved.fatherName).toBe('Parent One');
+    expect(saved.motherName).toBe('Parent Two');
+  });
+  test('student ID card endpoint requires student auth and returns only own profile and active enrollments', async () => {
+    const course = await f.createCourse();
+    const batch = await f.createBatch(course, { name: 'Verified Batch' });
+    const student = await f.createUser('STUDENT', {
+      name: 'Private Card Student',
+      mobileNumber: '+91 98765 43210',
+      fatherName: 'Father Example',
+      motherName: 'Mother Example',
+    });
+    await f.enroll(student, batch);
+    const otherStudent = await f.createUser('STUDENT', { name: 'Other Student' });
+    const trainer = await f.createUser('TRAINER');
+
+    expect((await request(app).get('/api/v1/users/me/id-card')).status).toBe(401);
+    expect((await request(app).get('/api/v1/users/me/id-card').set('Authorization', f.auth(trainer))).status).toBe(403);
+
+    const response = await request(app).get('/api/v1/users/me/id-card').set('Authorization', f.auth(student));
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      name: 'Private Card Student',
+      email: student.email,
+      mobileNumber: '+91 98765 43210',
+      fatherName: 'Father Example',
+      motherName: 'Mother Example',
+    });
+    expect(response.body.data.studentId).toMatch(/^ASDC-\d{4,}$/);
+    expect(response.body.data.enrollments).toEqual([expect.objectContaining({
+      course: expect.objectContaining({ name: course.name }),
+      batch: { name: 'Verified Batch' },
+    })]);
+    expect(response.body.data).not.toHaveProperty('passwordHash');
+    expect(response.body.data.name).not.toBe(otherStudent.name);
+    expect(await User.findById(student._id).then((saved) => saved.studentId)).toBe(response.body.data.studentId);
+
+    const login = await request(app).post('/api/v1/auth/login').send({ email: student.email, password: 'Passw0rd!123' });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.studentId).toBe(response.body.data.studentId);
+  });
   test('Other course requests create a student without an enrollment', async () => {
     const response = await request(app).post('/api/v1/auth/register').send({
       name: 'Requested Course Learner',
@@ -192,6 +255,7 @@ describe('Google Sign-In', () => {
     expect(res.body.data.accessToken).toBeTruthy();
     const fresh = await User.findById(u._id);
     expect(fresh.googleId).toBe('sub-111');
+    expect(fresh.studentId).toMatch(/^ASDC-\d{4,}$/);
     expect(fresh.authProviders).toContain('GOOGLE');
     expect(await AuditLog.countDocuments({ action: 'GOOGLE_LINKED', entityId: u._id })).toBe(1);
   });
@@ -226,9 +290,17 @@ describe('Google Sign-In', () => {
   test('Google self-registration creates a student with an active course enrollment', async () => {
     const course = await f.createCourse();
     verifyGoogleIdToken.mockResolvedValueOnce({ sub: 'registration-sub', email: 'google-user@example.test', emailVerified: true, name: 'Google Learner' });
-    const res = await request(app).post('/api/v1/auth/register-google').send({ idToken: FAKE, courseId: String(course._id) });
+    const res = await request(app).post('/api/v1/auth/register-google').send({
+      idToken: FAKE,
+      courseId: String(course._id),
+      mobileNumber: '+91 98765 43210',
+      fatherName: 'Father Example',
+      motherName: 'Mother Example',
+    });
     expect(res.status).toBe(201);
     expect(res.body.data.user.role).toBe('STUDENT');
+    expect(res.body.data.user.studentId).toMatch(/^ASDC-\d{4,}$/);
+    expect(res.body.data.user.mobileNumber).toBe('+91 98765 43210');
     expect(await Enrollment.countDocuments({ studentId: res.body.data.user.id, courseId: course._id, status: 'ACTIVE' })).toBe(1);
   });
   test('admin-only Google sign-in rejects a verified non-admin identity', async () => {

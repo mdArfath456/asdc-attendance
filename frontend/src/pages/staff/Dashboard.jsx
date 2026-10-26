@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const base = user.role === 'TRAINER' ? '/trainer' : '/admin';
   const [courses, setCourses] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 0, total: 0 });
+  const [page, setPage] = useState(1);
   const [todayByCourse, setTodayByCourse] = useState({});
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [cfg, setCfg] = useState(INITIAL);
@@ -23,30 +25,48 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [reopeningSessionId, setReopeningSessionId] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const requestSequence = useRef(0);
   const lateRef = useRef(null);
   const durationRef = useRef(null);
+  const requestedCourseId = searchParams.get('courseId');
 
-  const load = async () => {
-    const response = await api.get('/courses');
-    const available = response.data.data.filter((course) => course.status === 'ACTIVE');
-    const today = await Promise.all(available.filter((course) => course.batchId).map(async (course) => {
-      const result = await api.get(`/batches/${course.batchId}/attendance-sessions/today`);
-      return [course._id, result.data.data];
-    }));
+  const load = async (signal, pageNumber = page) => {
+    const sequence = ++requestSequence.current;
+    const [response, todayResponse] = await Promise.all([
+      api.get('/courses/paged', {
+        params: { page: pageNumber, limit: 30, status: 'ACTIVE', ...(requestedCourseId ? { courseId: requestedCourseId } : {}) },
+        signal,
+      }),
+      api.get('/attendance-sessions/today', { signal }),
+    ]);
+    if (sequence !== requestSequence.current) return;
+    const available = response.data.data.items;
+    const todayByCourse = Object.fromEntries(todayResponse.data.data.map((session) => [session.courseId, session]));
     setCourses(available);
-    setTodayByCourse(Object.fromEntries(today));
+    setPagination({
+      page: response.data.data.page,
+      pages: response.data.data.pages,
+      total: response.data.data.total,
+    });
+    setTodayByCourse(todayByCourse);
     setLoaded(true);
-    const requestedCourseId = searchParams.get('courseId');
     if (requestedCourseId) {
       const found = available.find((course) => String(course._id) === requestedCourseId);
       if (found) setSelectedCourse(found);
     }
   };
   useEffect(() => {
-    load().catch((loadError) => { setError(errMsg(loadError)); setLoaded(true); });
+    const controller = new AbortController();
+    load(controller.signal).catch((loadError) => {
+      if (loadError.name !== 'CanceledError' && loadError.name !== 'AbortError') {
+        setError(errMsg(loadError));
+        setLoaded(true);
+      }
+    });
+    return () => { requestSequence.current += 1; controller.abort(); };
     // Initial data is loaded on mount; search params provide an optional deep link to a course.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page, requestedCourseId]);
 
   const start = async (event) => {
     event.preventDefault();
@@ -144,6 +164,13 @@ export default function Dashboard() {
           );
         })}
       </div>
+      {pagination.pages > 1 && (
+        <div className="row spread" aria-label="Course pagination">
+          <button className="btn ghost" type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+          <span className="muted">Page {pagination.page} of {pagination.pages} · {pagination.total} courses</span>
+          <button className="btn ghost" type="button" disabled={page >= pagination.pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+        </div>
+      )}
       {selectedCourse && (
         <Modal
           title={`Start attendance: ${selectedCourse.name}`}

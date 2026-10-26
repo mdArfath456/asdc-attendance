@@ -21,5 +21,6 @@ enrollmentSchema.index(
 );
 enrollmentSchema.index({ studentId: 1, status: 1 });
 enrollmentSchema.index({ batchId: 1, status: 1 });
+enrollmentSchema.index({ courseId: 1, status: 1 });
 
 module.exports = mongoose.models.Enrollment || mongoose.model('Enrollment', enrollmentSchema);

@@ -46,6 +46,13 @@ npm run merge-same-day-sessions -- --yes         # merge data and create daily u
 ```
 Review the dry-run counts and take a database backup before applying. The migration keeps the earliest non-cancelled session per batch/day, preserves the best record per enrollment, and discards attendance from cancelled sessions.
 
+### Student institutional IDs
+New student registrations receive a permanent sequential `ASDC-0001` style ID. To assign IDs to existing students that do not yet have one, run this idempotent migration from `backend/` (take a database backup first):
+```
+npm run backfill-student-ids
+```
+The migration preserves existing student records and already-assigned IDs. The student ID card is available from the authenticated student navigation and uses the student's own profile and active enrollment data.
+
 ## Removing dummy data
 Run these commands from `backend/`:
 ```
@@ -63,6 +70,11 @@ npm test   # or: cd backend && npm test        # Jest + Supertest on a throw-awa
 npm run test:replset --prefix backend   # same tests on a replica set (transaction path)
 ```
 Covers all 15 acceptance criteria: Google link/reject (verifyIdToken mocked), RBAC, grace-window boundaries, expired/forged tokens, cross-batch replay, proxy attempts, 6 concurrent scans -> 1 record, close -> ABSENT bulk, transfers keep history, corrections + immutable audit, secrets never in responses.
+
+### Performance diagnostics
+For local development only, set `PERF_DIAGNOSTICS=1` for the backend and `VITE_PERF_DIAGNOSTICS=true` for the frontend. Logs include route/method/status, durations, response byte counts, MongoDB command names/durations, and initial connection/index initialization time; they do not include request bodies, query values, tokens, or returned personal data. Leave both settings unset unless diagnosing performance.
+
+The staff dashboard/header share `GET /api/v1/attendance-sessions/today`; staff course lists use `GET /api/v1/courses/paged` (default 30, maximum 100; optional `status` and `courseId` filters), and reports load course selector options from `GET /api/v1/courses/options`; reports use `GET /api/v1/attendance/reports/overview`; student history accepts `page` and `limit` on `GET /api/v1/attendance/my-history` (default 50 records, maximum 100). The legacy unpaginated course, per-batch today-session, and separate report/summary endpoints remain available.
 
 ## Key design points
 - Identity for check-in comes only from the JWT; `studentId` in the body is rejected (strict zod schema).

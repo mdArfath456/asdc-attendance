@@ -7,6 +7,8 @@ import { courseSchema, validate } from '../../validation';
 const EMPTY = { name: '', code: '', description: '', isPublic: false };
 export default function Courses() {
   const [courses, setCourses] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 0, total: 0 });
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
   const [errors, setErrors] = useState({});
@@ -15,16 +17,34 @@ export default function Courses() {
   const nameRef = useRef(null);
   const codeRef = useRef(null);
   const descriptionRef = useRef(null);
+  const listRequestSequence = useRef(0);
+  const listRequestController = useRef(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageNumber = page) => {
+    const sequence = ++listRequestSequence.current;
+    listRequestController.current?.abort();
+    const controller = new AbortController();
+    listRequestController.current = controller;
     try {
-      const response = await api.get('/courses');
-      setCourses(response.data.data);
+      const response = await api.get('/courses/paged', { params: { page: pageNumber, limit: 30 }, signal: controller.signal });
+      if (sequence !== listRequestSequence.current) return;
+      setCourses(response.data.data.items);
+      setPagination({
+        page: response.data.data.page,
+        pages: response.data.data.pages,
+        total: response.data.data.total,
+      });
     } catch (e) {
-      setError(errMsg(e));
+      if (!controller.signal.aborted && sequence === listRequestSequence.current) setError(errMsg(e));
     }
-  }, []);
-  useEffect(() => { load(); }, [load]);
+  }, [page]);
+  useEffect(() => {
+    load();
+    return () => {
+      listRequestSequence.current += 1;
+      listRequestController.current?.abort();
+    };
+  }, [load]);
 
   const create = async (event) => {
     event.preventDefault();
@@ -47,7 +67,8 @@ export default function Courses() {
       }
       setForm(EMPTY);
       setMessage(enrolledCount ? `Course created and ${enrolledCount} requested student(s) enrolled.` : 'Course created.');
-      await load();
+      if (page === 1) await load(1);
+      else setPage(1);
     } catch (e) {
       if (e.response?.status === 409 || e.response?.data?.error?.code === 'DUPLICATE_KEY') {
         setErrors((current) => ({ ...current, code: 'This course code is already in use.' }));
@@ -95,7 +116,14 @@ export default function Courses() {
           </article>
         ))}
       </div>
-      {courses.length === 0 && <p className="muted">No courses yet. Create one.</p>}
+      {pagination.total === 0 && <p className="muted">No courses yet. Create one.</p>}
+      {pagination.pages > 1 && (
+        <div className="row spread" aria-label="Course pagination">
+          <button className="btn ghost" type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+          <span className="muted">Page {pagination.page} of {pagination.pages} · {pagination.total} courses</span>
+          <button className="btn ghost" type="button" disabled={page >= pagination.pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+        </div>
+      )}
     </>
   );
 }

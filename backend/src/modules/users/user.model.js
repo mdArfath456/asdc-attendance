@@ -6,6 +6,10 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 120 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     role: { type: String, enum: ROLES, required: true, index: true },
+    studentId: { type: String, trim: true, uppercase: true, sparse: true, unique: true },
+    mobileNumber: { type: String, trim: true, maxlength: 32 },
+    fatherName: { type: String, trim: true, maxlength: 120 },
+    motherName: { type: String, trim: true, maxlength: 120 },
     status: { type: String, enum: USER_STATUS, default: 'ACTIVE', index: true },
     passwordHash: {
       type: String,

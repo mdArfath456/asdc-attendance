@@ -5,6 +5,7 @@ const app = require('../../src/app');
 const AttendanceSession = require('../../src/modules/attendance/attendanceSession.model');
 const AttendanceRecord = require('../../src/modules/attendance/attendanceRecord.model');
 const Enrollment = require('../../src/modules/enrollments/enrollment.model');
+const Batch = require('../../src/modules/batches/batch.model');
 const AuditLog = require('../../src/modules/audit/auditLog.model');
 const sessionsService = require('../../src/modules/attendance/session.service');
 const checkInService = require('../../src/modules/attendance/checkin.service');
@@ -91,6 +92,23 @@ describe('session start / authorisation', () => {
     const recorded = (await studentToday()).body.data.courses[0];
     expect(recorded.state).toBe('RECORDED');
     expect(recorded.record.status).toBe('PRESENT');
+  });
+  test('staff today dashboard endpoint returns only sessions in the user’s authorized scope', async () => {
+    const { batch, sessionId } = await open();
+    await Batch.updateOne({ _id: batch._id }, { $set: { isCourseGroup: true } });
+    const url = '/api/v1/attendance-sessions/today';
+    const adminResult = await request(app).get(url).set('Authorization', f.auth(admin));
+    expect(adminResult.status).toBe(200);
+    expect(adminResult.body.data.map((session) => String(session._id))).toContain(sessionId);
+
+    const trainerResult = await request(app).get(url).set('Authorization', f.auth(trainer));
+    expect(trainerResult.status).toBe(200);
+    expect(trainerResult.body.data.map((session) => String(session._id))).toContain(sessionId);
+
+    const otherTrainerResult = await request(app).get(url).set('Authorization', f.auth(otherTrainer));
+    expect(otherTrainerResult.status).toBe(200);
+    expect(otherTrainerResult.body.data).toHaveLength(0);
+    expect((await request(app).get(url).set('Authorization', f.auth((await f.createUser('STUDENT'))))).status).toBe(403);
   });
   test('unauthenticated requests are rejected', async () => {
     expect((await request(app).post('/api/v1/attendance/check-in').send({ token: 'x'.repeat(20) })).status).toBe(401);
@@ -205,6 +223,50 @@ describe('check-in', () => {
 });
 
 describe('closing, corrections, history', () => {
+  test('student history pagination limits records while keeping full totals', async () => {
+    const { batch, students } = await scenario();
+    const student = students[0];
+    const enrollment = await Enrollment.findOne({ studentId: student._id, batchId: batch._id });
+    const dates = [new Date('2025-01-01T00:00:00.000Z'), new Date('2025-01-02T00:00:00.000Z')];
+    for (const [index, sessionDate] of dates.entries()) {
+      const session = await AttendanceSession.create({
+        batchId: batch._id,
+        courseId: batch.courseId,
+        title: `History ${index + 1}`,
+        sessionDate,
+        scheduledStart: sessionDate,
+        scheduledEnd: new Date(sessionDate.getTime() + 3600000),
+        actualStartTime: sessionDate,
+        actualEndTime: new Date(sessionDate.getTime() + 3600000),
+        createdBy: admin._id,
+        closedBy: admin._id,
+        status: 'CLOSED',
+        lateThresholdMinutes: 10,
+        currentTokenVersion: 1,
+        refreshIntervalSeconds: 15,
+        gracePeriodSeconds: 10,
+      });
+      await AttendanceRecord.create({
+        sessionId: session._id,
+        enrollmentId: enrollment._id,
+        studentId: student._id,
+        batchId: batch._id,
+        sessionDate,
+        status: index === 0 ? 'PRESENT' : 'LATE',
+        recordedMethod: 'QR_SCAN',
+        checkInTimestamp: sessionDate,
+      });
+    }
+
+    const first = await request(app).get('/api/v1/attendance/my-history?page=1&limit=1').set('Authorization', f.auth(student));
+    const second = await request(app).get('/api/v1/attendance/my-history?page=2&limit=1').set('Authorization', f.auth(student));
+    expect(first.status).toBe(200);
+    expect(first.body.data.history).toMatchObject({ page: 1, limit: 1, total: 2, pages: 2 });
+    expect(first.body.data.enrollments[0].sessions).toHaveLength(1);
+    expect(second.body.data.enrollments[0].sessions).toHaveLength(1);
+    expect(first.body.data.overall).toMatchObject({ present: 1, late: 1 });
+    expect(first.body.data.enrollments[0].summary).toMatchObject({ present: 1, late: 1 });
+  });
   test('11. closing rejects further scans and auto-creates ABSENT records', async () => {
     const { students, token, sessionId } = await open();
     await scan(students[0], token);
@@ -374,6 +436,26 @@ describe('closing, corrections, history', () => {
 });
 
 describe('reports and secret hygiene', () => {
+  test('course pagination preserves legacy listing and enforces trainer scope', async () => {
+    const assignedCourse = await f.createCourse();
+    const otherCourse = await f.createCourse();
+    const assignedBatch = await f.createBatch(assignedCourse, { isCourseGroup: true });
+    await f.createBatch(otherCourse, { isCourseGroup: true });
+    await f.assignTrainer(trainer, assignedBatch);
+    const url = (courseId, page = 1) => `/api/v1/courses/paged?courseId=${courseId}&page=${page}&limit=1`;
+
+    const adminResult = await request(app).get(url(assignedCourse._id)).set('Authorization', f.auth(admin));
+    expect(adminResult.status).toBe(200);
+    expect(adminResult.body.data).toMatchObject({ total: 1, page: 1, limit: 1, pages: 1 });
+    expect(String(adminResult.body.data.items[0]._id)).toBe(String(assignedCourse._id));
+    expect((await request(app).get(url(assignedCourse._id, 2)).set('Authorization', f.auth(admin))).body.data.items).toHaveLength(0);
+
+    const trainerResult = await request(app).get(url(assignedCourse._id)).set('Authorization', f.auth(trainer));
+    expect(trainerResult.body.data.total).toBe(1);
+    expect((await request(app).get(url(otherCourse._id)).set('Authorization', f.auth(trainer))).body.data.total).toBe(0);
+    expect(Array.isArray((await request(app).get('/api/v1/courses').set('Authorization', f.auth(admin))).body.data)).toBe(true);
+  });
+
   test('admin report/export work; trainers are scoped; students blocked', async () => {
     const { batch, students, token, sessionId } = await open();
     await scan(students[0], token);
@@ -384,6 +466,10 @@ describe('reports and secret hygiene', () => {
     const pct = Object.fromEntries(rep.body.data.items.map((r) => [r.studentId, r.percentage]));
     expect(pct[String(students[0]._id)]).toBe(100);
     expect(pct[String(students[1]._id)]).toBe(0);
+    const overview = await request(app).get(`/api/v1/attendance/reports/overview?batchId=${batch._id}`).set('Authorization', f.auth(admin));
+    expect(overview.status).toBe(200);
+    expect(overview.body.data.report.items).toEqual(rep.body.data.items);
+    expect(overview.body.data.summary.totals).toMatchObject({ present: 1, absent: 2 });
     const csv = await request(app).get(`/api/v1/attendance/reports/export?batchId=${batch._id}&format=csv`).set('Authorization', f.auth(admin));
     expect(csv.status).toBe(200);
     expect(csv.headers['content-type']).toMatch(/text\/csv/);

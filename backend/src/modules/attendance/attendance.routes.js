@@ -10,6 +10,7 @@ const admins = [authenticate, authorizeRoles('ADMIN')];
 const students = [authenticate, authorizeRoles('STUDENT')];
 
 // Session lifecycle (batch-level authorisation is enforced inside the service)
+router.get('/attendance-sessions/today', ...staff, ctrl.todayForStaff);
 router.post('/batches/:batchId/attendance-sessions', ...staff, validate({ params: v.batchParams, body: v.start }), ctrl.start);
 router.get('/batches/:batchId/attendance-sessions/today', ...staff, validate({ params: v.batchParams }), ctrl.todayForBatch);
 router.get('/batches/:batchId/attendance-sessions', ...staff, validate({ params: v.batchParams }), ctrl.listForBatch);
@@ -23,7 +24,7 @@ router.get('/attendance-sessions/:sessionId/records', ...staff, validate({ param
 // Student
 router.post('/attendance/check-in', ...students, checkInLimiter, validate({ body: v.checkIn }), ctrl.checkIn);
 router.get('/attendance/today', ...students, validate({ query: v.emptyQuery }), ctrl.studentToday);
-router.get('/attendance/my-history', ...students, validate({ query: v.emptyQuery }), ctrl.myHistory);
+router.get('/attendance/my-history', ...students, validate({ query: v.historyQuery }), ctrl.myHistory);
 
 // Corrections (Admin / Super Admin only)
 router.patch('/attendance-records/:recordId', ...admins, validate({ params: v.recordParams, body: v.correct }), ctrl.correct);

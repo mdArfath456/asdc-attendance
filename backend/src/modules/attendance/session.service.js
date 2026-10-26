@@ -5,6 +5,9 @@ const realtime = require('../../config/realtime');
 const AttendanceSession = require('./attendanceSession.model');
 const AttendanceRecord = require('./attendanceRecord.model');
 const Enrollment = require('../enrollments/enrollment.model');
+const Batch = require('../batches/batch.model');
+const Course = require('../courses/course.model');
+const TrainerAssignment = require('../batches/trainerAssignment.model');
 const { assertBatchAccess } = require('../batches/batches.service');
 const audit = require('../audit/audit.service');
 const qr = require('./qr.service');
@@ -128,6 +131,39 @@ async function getTodayForBatch(user, batchId) {
     batchId,
     sessionDate: sessionDateFor(),
     status: { $in: ['SCHEDULED', 'OPEN', 'CLOSED'] },
+  });
+}
+
+async function getTodayForStaff(user) {
+  const [activeCourseIds, assignedBatchIds] = await Promise.all([
+    Course.distinct('_id', { status: 'ACTIVE' }),
+    user.role === 'TRAINER' ? TrainerAssignment.distinct('batchId', { trainerId: user.id }) : Promise.resolve(null),
+  ]);
+  const filter = { courseId: { $in: activeCourseIds }, isCourseGroup: true, status: 'ACTIVE' };
+  if (assignedBatchIds) filter._id = { $in: assignedBatchIds };
+  const batches = await Batch.find(filter)
+    .select('+isCourseGroup courseId')
+    .populate('courseId', 'name')
+    .lean();
+  if (!batches.length) return [];
+
+  const today = sessionDateFor();
+  const sessions = await AttendanceSession.find({
+    batchId: { $in: batches.map((batch) => batch._id) },
+    sessionDate: today,
+    status: { $in: ['SCHEDULED', 'OPEN', 'CLOSED'] },
+  })
+    .select('batchId courseId title sessionDate status scheduledEnd actualStartTime actualEndTime')
+    .lean();
+  const batchById = new Map(batches.map((batch) => [String(batch._id), batch]));
+  return sessions.map((session) => {
+    const batch = batchById.get(String(session.batchId));
+    return {
+      ...session,
+      batchId: String(session.batchId),
+      courseId: String(session.courseId),
+      courseName: batch?.courseId?.name || batch?.name || 'Course',
+    };
   });
 }
 
@@ -325,4 +361,4 @@ async function autoCloseExpiredSessions() {
   return due.length;
 }
 
-module.exports = { loadSessionWithAccess, startSession, rotateToken, getSession, listForBatch, getTodayForBatch, getStudentToday, listRecords, closeSession, closeSessionInternal, cancelSession, reopenSession, autoCloseExpiredSessions, stats, countByStatus };
+module.exports = { loadSessionWithAccess, startSession, rotateToken, getSession, listForBatch, getTodayForBatch, getTodayForStaff, getStudentToday, listRecords, closeSession, closeSessionInternal, cancelSession, reopenSession, autoCloseExpiredSessions, stats, countByStatus };

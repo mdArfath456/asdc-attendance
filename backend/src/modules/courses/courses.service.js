@@ -29,27 +29,67 @@ async function ensureCourseBatch(course, createdBy) {
   }
 }
 
-async function list(user) {
-  let courses;
+async function courseFilter(user, courseId, status) {
+  let filter = status ? { status } : {};
   if (user.role !== 'TRAINER') {
-    courses = await Course.find().sort({ name: 1 });
+    if (courseId) filter._id = courseId;
   } else {
-    const assignments = await TrainerAssignment.find({ trainerId: user.id }).select('batchId').lean();
-    const batches = await Batch.find({ _id: { $in: assignments.map((a) => a.batchId) } }).select('courseId').lean();
-    courses = await Course.find({ _id: { $in: batches.map((b) => b.courseId) } }).sort({ name: 1 });
+    const assignedBatchIds = await TrainerAssignment.distinct('batchId', { trainerId: user.id });
+    const courseIds = await Batch.distinct('courseId', { _id: { $in: assignedBatchIds } });
+    filter._id = { $in: courseId ? courseIds.filter((id) => String(id) === String(courseId)) : courseIds };
   }
-  const batches = await Batch.find({ courseId: { $in: courses.map((c) => c._id) }, isCourseGroup: true }).select('+isCourseGroup courseId').lean();
-  const batchByCourse = new Map(batches.map((batch) => [String(batch.courseId), String(batch._id)]));
-  const counts = await Enrollment.aggregate([
-    { $match: { courseId: { $in: courses.map((course) => course._id) }, status: 'ACTIVE' } },
-    { $group: { _id: '$courseId', count: { $sum: 1 } } },
+  return filter;
+}
+
+async function addCourseDetails(courses) {
+  if (!courses.length) return [];
+  const courseIds = courses.map((course) => course._id);
+  const [batches, counts] = await Promise.all([
+    Batch.find({ courseId: { $in: courseIds }, isCourseGroup: true }).select('+isCourseGroup courseId').lean(),
+    Enrollment.aggregate([
+      { $match: { courseId: { $in: courseIds }, status: 'ACTIVE' } },
+      { $group: { _id: '$courseId', count: { $sum: 1 } } },
+    ]),
   ]);
+  const batchByCourse = new Map(batches.map((batch) => [String(batch.courseId), String(batch._id)]));
   const countByCourse = new Map(counts.map((row) => [String(row._id), row.count]));
   return courses.map((course) => ({
-    ...course.toJSON(),
+    ...course,
+    id: String(course._id),
     batchId: batchByCourse.get(String(course._id)),
     enrolledCount: countByCourse.get(String(course._id)) || 0,
   }));
+}
+async function list(user) {
+  const filter = await courseFilter(user);
+  const courses = await Course.find(filter)
+    .select('_id name code slug description durationHours isPublic status createdBy createdAt updatedAt')
+    .sort({ name: 1 })
+    .lean();
+  return addCourseDetails(courses);
+}
+async function listOptions(user) {
+  const filter = await courseFilter(user);
+  return Course.find(filter).select('_id name').sort({ name: 1 }).lean();
+}
+async function listPaginated(user, { page, limit, courseId, status } = {}) {
+  const filter = await courseFilter(user, courseId, status);
+  const [courses, total] = await Promise.all([
+    Course.find(filter)
+      .select('_id name code slug description durationHours isPublic status createdBy createdAt updatedAt')
+      .sort({ name: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    Course.countDocuments(filter),
+  ]);
+  return {
+    items: await addCourseDetails(courses),
+    total,
+    page,
+    limit,
+    pages: Math.ceil(total / limit),
+  };
 }
 const listPublic = () => Course.find({ isPublic: true, status: 'ACTIVE' }).select(PUBLIC_FIELDS).sort({ name: 1 }).lean();
 const listActive = () => Course.find({ status: 'ACTIVE' }).select('_id name code').sort({ name: 1 }).lean();
@@ -95,17 +135,34 @@ async function getDetails(courseId, actor) {
 
 async function listGroupedStudents(search = '') {
   const rx = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
-  const courses = await Course.find().sort({ name: 1 }).lean();
-  const batches = await Batch.find({ isCourseGroup: true }).select('+isCourseGroup courseId').lean();
-  const grouped = await Promise.all(courses.map(async (course) => {
-    const batch = batches.find((row) => String(row.courseId) === String(course._id));
-    if (!batch) return { course: { id: String(course._id), name: course.name, code: course.code }, count: 0, students: [] };
-    const enrollments = await Enrollment.find({ batchId: batch._id, status: 'ACTIVE' }).populate('studentId', 'name email').sort({ enrolledAt: 1 }).lean();
-    const students = enrollments.filter((row) => row.studentId && (!rx || rx.test(row.studentId.name) || rx.test(row.studentId.email)))
-      .map((row) => ({ enrollmentId: String(row._id), student: row.studentId }));
-    return { course: { id: String(course._id), name: course.name, code: course.code }, count: students.length, students };
-  }));
-  return grouped;
+  const [courses, batches] = await Promise.all([
+    Course.find().select('_id name code').sort({ name: 1 }).lean(),
+    Batch.find({ isCourseGroup: true }).select('+isCourseGroup courseId').lean(),
+  ]);
+  const courseById = new Map(courses.map((course) => [String(course._id), course]));
+  const courseByBatch = new Map(batches.map((batch) => [String(batch._id), courseById.get(String(batch.courseId))]));
+  const batchIds = batches.map((batch) => batch._id);
+  const enrollments = batchIds.length
+    ? await Enrollment.find({ batchId: { $in: batchIds }, status: 'ACTIVE' })
+      .select('batchId studentId enrolledAt')
+      .populate('studentId', 'name email')
+      .sort({ enrolledAt: 1 })
+      .lean()
+    : [];
+  const grouped = new Map(courses.map((course) => [String(course._id), {
+    course: { id: String(course._id), name: course.name, code: course.code },
+    count: 0,
+    students: [],
+  }]));
+  for (const enrollment of enrollments) {
+    const student = enrollment.studentId;
+    const course = courseByBatch.get(String(enrollment.batchId));
+    if (!student || !course || (rx && !rx.test(student.name) && !rx.test(student.email))) continue;
+    const group = grouped.get(String(course._id));
+    group.count += 1;
+    group.students.push({ enrollmentId: String(enrollment._id), student });
+  }
+  return [...grouped.values()];
 }
 
 async function listRequestedStudents(search = '') {
@@ -238,4 +295,4 @@ async function ensureAllCourseBatches() {
   for (const course of courses) await ensureCourseBatch(course);
 }
 
-module.exports = { list, listPublic, listActive, getPublicBySlug, create, update, getDetails, listGroupedStudents, listRequestedStudents, enrollRequestedStudents, assignTrainer, removeTrainer, ensureCourseBatch, ensureAllCourseBatches };
+module.exports = { list, listOptions, listPaginated, listPublic, listActive, getPublicBySlug, create, update, getDetails, listGroupedStudents, listRequestedStudents, enrollRequestedStudents, assignTrainer, removeTrainer, ensureCourseBatch, ensureAllCourseBatches };

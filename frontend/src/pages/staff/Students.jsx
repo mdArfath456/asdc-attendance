@@ -17,21 +17,36 @@ export default function Students() {
   const [codeErrors, setCodeErrors] = useState({});
   const [busy, setBusy] = useState('');
   const codeRefs = useRef({});
+  const requestSequence = useRef(0);
+  const requestController = useRef(null);
   const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setError('');
     try {
       const [students, requestedStudents, activeCourses] = await Promise.all([
-        api.get('/courses/students', { params: search ? { search } : {} }),
-        api.get('/courses/requested-students', { params: search ? { search } : {} }),
-        api.get('/courses/active'),
+        api.get('/courses/students', { params: search ? { search } : {}, signal: controller.signal }),
+        api.get('/courses/requested-students', { params: search ? { search } : {}, signal: controller.signal }),
+        api.get('/courses/active', { signal: controller.signal }),
       ]);
+      if (sequence !== requestSequence.current) return;
       setGroups(students.data.data);
       setRequested(requestedStudents.data.data);
       setCourses(activeCourses.data.data);
     } catch (e) {
-      setError(errMsg(e));
+      if (!controller.signal.aborted && sequence === requestSequence.current) setError(errMsg(e));
     }
   }, [search]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = setTimeout(load, 250);
+    return () => {
+      clearTimeout(timer);
+      requestSequence.current += 1;
+      requestController.current?.abort();
+    };
+  }, [load]);
 
   const move = async (row) => {
     setError('');

@@ -14,6 +14,12 @@ exports.update = z.object(base).partial().strict().refine((o) => Object.keys(o).
 exports.idParams = z.object({ courseId: objectId });
 exports.slugParams = z.object({ slug: z.string().regex(/^[a-z0-9-]+$/).max(80) });
 exports.studentSearch = z.object({ search: z.string().trim().max(100).optional() }).strict();
+exports.pageQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  courseId: objectId.optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+}).strict();
 exports.assignTrainer = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict();
 exports.enrollRequested = z.object({ requestedCourseName: z.string().trim().min(2).max(80).optional() }).strict();
 exports.trainerParams = z.object({ courseId: objectId, trainerId: objectId });

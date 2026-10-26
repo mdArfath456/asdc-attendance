@@ -20,6 +20,7 @@ const recordSchema = new mongoose.Schema(
 recordSchema.index({ sessionId: 1, enrollmentId: 1 }, { unique: true });
 recordSchema.index({ enrollmentId: 1, sessionDate: 1 }, { unique: true, name: 'one_attendance_per_enrollment_per_day' });
 recordSchema.index({ studentId: 1, batchId: 1 });
+recordSchema.index({ studentId: 1, sessionDate: -1 });
 recordSchema.index({ batchId: 1, status: 1 });
 
 module.exports = mongoose.models.AttendanceRecord || mongoose.model('AttendanceRecord', recordSchema);

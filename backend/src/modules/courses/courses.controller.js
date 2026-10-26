@@ -2,6 +2,8 @@ const asyncHandler = require('../../utils/asyncHandler');
 const { ok, created } = require('../../utils/respond');
 const service = require('./courses.service');
 exports.list = asyncHandler(async (req, res) => ok(res, await service.list(req.user)));
+exports.listOptions = asyncHandler(async (req, res) => ok(res, await service.listOptions(req.user)));
+exports.listPaginated = asyncHandler(async (req, res) => ok(res, await service.listPaginated(req.user, req.query)));
 exports.listPublic = asyncHandler(async (req, res) => ok(res, await service.listPublic()));
 exports.listActive = asyncHandler(async (req, res) => ok(res, await service.listActive()));
 exports.getPublic = asyncHandler(async (req, res) => ok(res, await service.getPublicBySlug(req.params.slug)));

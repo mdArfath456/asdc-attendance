@@ -11,17 +11,31 @@ export default function Reports() {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { api.get('/courses').then((r) => setCourses(r.data.data)).catch((e) => setError(errMsg(e))); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    api.get('/courses/options', { signal: controller.signal }).then((r) => setCourses(r.data.data))
+      .catch((e) => { if (e.name !== 'CanceledError' && e.name !== 'AbortError') setError(errMsg(e)); });
+    return () => controller.abort();
+  }, []);
   const params = useCallback(() => Object.fromEntries(Object.entries(f).filter(([, v]) => v)), [f]);
-  const load = useCallback(async () => {
+  useEffect(() => {
+    const controller = new AbortController();
     setError('');
-    try {
-      const [r, s] = await Promise.all([api.get('/attendance/reports', { params: params() }), api.get('/attendance/summary', { params: params() })]);
-      setRows(r.data.data.items); setSummary(s.data.data);
-    } catch (e) { setError(errMsg(e)); }
+    setLoading(true);
+    api.get('/attendance/reports/overview', { params: params(), signal: controller.signal })
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        setRows(response.data.data.report.items);
+        setSummary(response.data.data.summary);
+      })
+      .catch((loadError) => {
+        if (!controller.signal.aborted && loadError.name !== 'CanceledError' && loadError.name !== 'AbortError') setError(errMsg(loadError));
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [params]);
-  useEffect(() => { load(); }, [load]);
 
   const exportFile = async (format) => {
     const r = await api.get('/attendance/reports/export', { params: { ...params(), format }, responseType: 'blob' });
@@ -46,6 +60,7 @@ export default function Reports() {
           )}
           <div className="card">
             <div className="row spread"><h2>Students ({rows.length})</h2>{isAdmin && <div className="row"><button className="btn small ghost" onClick={() => exportFile('csv')}>Export CSV</button><button className="btn small ghost" onClick={() => exportFile('json')}>JSON</button></div>}</div>
+            {loading && <p className="muted" role="status">Loading report…</p>}
             <div className="table-wrap"><table><thead><tr><th>Student</th><th>Course</th><th>P</th><th>L</th><th>A</th><th>E</th><th>%</th></tr></thead>
               <tbody>{rows.map((r) => <tr key={r.enrollmentId}><td>{r.studentName}<br /><small className="muted">{r.studentEmail}</small></td><td>{r.courseName}</td><td>{r.present}</td><td>{r.late}</td><td>{r.absent}</td><td>{r.excused}</td><td className={r.belowThreshold ? 'scan-bad' : ''}><b>{pct(r.percentage)}</b></td></tr>)}
                 {rows.length === 0 && <tr><td colSpan="7" className="muted">No closed sessions in this selection.</td></tr>}</tbody></table></div>

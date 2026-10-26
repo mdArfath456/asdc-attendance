@@ -6,6 +6,7 @@ export const setAccessToken = (t) => { accessToken = t; };
 export const getAccessToken = () => accessToken;
 export const setAuthLostHandler = (fn) => { onAuthLost = fn; };
 const SESSION_HINT = 'asdc_session_hint';
+const performanceDiagnostics = import.meta.env.VITE_PERF_DIAGNOSTICS === 'true';
 export const hasSessionHint = () => window.localStorage.getItem(SESSION_HINT) === '1';
 export const setSessionHint = (active) => {
   if (active) window.localStorage.setItem(SESSION_HINT, '1');
@@ -15,9 +16,21 @@ export const setSessionHint = (active) => {
 const definitiveRefreshFailure = (error) => error.response?.status === 401
   && error.response?.data?.error?.code !== 'REFRESH_RACE';
 
+function logRequestTiming(config, status, headers = {}) {
+  if (!performanceDiagnostics || !config?.performanceStartedAt) return;
+  console.info('[api-performance]', {
+    method: config.method?.toUpperCase(),
+    route: String(config.url || '').split('?')[0],
+    status,
+    durationMs: Number((performance.now() - config.performanceStartedAt).toFixed(2)),
+    responseBytes: Number(headers['content-length']) || null,
+  });
+}
+
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api/v1', withCredentials: true });
 api.interceptors.request.use((cfg) => {
   if (accessToken) cfg.headers.Authorization = `Bearer ${accessToken}`;
+  if (performanceDiagnostics) cfg.performanceStartedAt = performance.now();
   return cfg;
 });
 
@@ -49,9 +62,13 @@ export function refreshSession() {
 }
 
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    logRequestTiming(r.config, r.status, r.headers);
+    return r;
+  },
   async (err) => {
     const original = err.config;
+    logRequestTiming(original, err.response?.status || 'network-error', err.response?.headers);
     if (err.response && err.response.status === 401 && original && !original._retry && !String(original.url).includes('/auth/')) {
       original._retry = true;
       try {

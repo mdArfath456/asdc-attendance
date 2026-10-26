@@ -5,6 +5,7 @@ const ctrl = require('./reports.controller');
 const v = require('./reports.validation');
 
 const staff = [authenticate, authorizeRoles('ADMIN', 'TRAINER')];
+router.get('/attendance/reports/overview', ...staff, validate({ query: v.reportQuery }), ctrl.overview);
 router.get('/attendance/reports', ...staff, validate({ query: v.reportQuery }), ctrl.report);
 router.get('/attendance/reports/export', authenticate, authorizeRoles('ADMIN'), validate({ query: v.exportQuery }), ctrl.export);
 router.get('/attendance/summary', ...staff, validate({ query: v.summaryQuery }), ctrl.summary);

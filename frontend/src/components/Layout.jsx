@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import api from '../api';
+import StudentIdCardModal from './StudentIdCardModal';
 
 export default function Layout() {
   const { user, logout, setThemePreference } = useAuth();
@@ -9,8 +10,11 @@ export default function Layout() {
   const base = user.role === 'ADMIN' ? '/admin' : user.role === 'TRAINER' ? '/trainer' : '/student';
   const [liveSessions, setLiveSessions] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [idCardOpen, setIdCardOpen] = useState(false);
   const [themeError, setThemeError] = useState('');
+  const [sessionError, setSessionError] = useState('');
   const isDark = user.themePreference === 'dark';
+  const closeIdCard = useCallback(() => setIdCardOpen(false), []);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -32,22 +36,23 @@ export default function Layout() {
   useEffect(() => {
     if (!['ADMIN', 'TRAINER'].includes(user.role)) return undefined;
     let cancelled = false;
+    let controller;
     const load = async () => {
+      controller?.abort();
+      controller = new AbortController();
       try {
-        const { data } = await api.get('/courses');
-        const sessionsByCourse = await Promise.all(data.data.filter((course) => course.batchId).map(async (course) => {
-          const result = await api.get(`/batches/${course.batchId}/attendance-sessions`);
-          const session = result.data.data.find((item) => item.status === 'OPEN');
-          return session ? { ...session, courseName: course.name } : null;
-        }));
-        if (!cancelled) setLiveSessions(sessionsByCourse.filter(Boolean));
+        const { data } = await api.get('/attendance-sessions/today', { signal: controller.signal });
+        if (!cancelled) {
+          setLiveSessions(data.data.filter((session) => session.status === 'OPEN'));
+          setSessionError('');
+        }
       } catch {
-        if (!cancelled) setLiveSessions([]);
+        if (!cancelled && !controller.signal.aborted) setSessionError('Live session status is temporarily unavailable.');
       }
     };
     load();
     const timer = setInterval(load, 15000);
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => { cancelled = true; clearInterval(timer); controller?.abort(); };
   }, [user.role]);
   const links = user.role === 'ADMIN'
     ? [['/admin', 'Attendance', true], ['/admin/courses', 'Courses'], ['/admin/students', 'Students'], ['/admin/reports', 'Reports'], ['/admin/audit', 'Audit log']]
@@ -86,10 +91,12 @@ export default function Layout() {
           <nav id="primary-navigation" aria-label="Main navigation">{links.map(([to, label, end]) => <NavLink key={to} to={to} end={!!end} onClick={() => setMenuOpen(false)}>{label}</NavLink>)}</nav>
           <div className="who">
             <span>{user.name} <small className="muted">({user.role.replace('_', ' ')})</small></span>
+            {user.role === 'STUDENT' && <button className="btn small ghost" type="button" onClick={() => setIdCardOpen(true)}>My ID Card</button>}
             <button className="btn small ghost" onClick={async () => { await logout(); nav('/'); }}>Log out</button>
           </div>
         </div>
         {themeError && <div className="topbar-message error" role="alert">{themeError}</div>}
+        {sessionError && <div className="topbar-message error" role="status">{sessionError}</div>}
         {liveSessions.map((session) => (
           <div className="live-banner" key={session._id}>
             Live session: {session.courseName} — <Link to={`${base}/session/${session._id}`}>Open QR screen</Link>
@@ -97,6 +104,7 @@ export default function Layout() {
         ))}
       </header>
       <main className="content"><Outlet /></main>
+      {idCardOpen && <StudentIdCardModal onClose={closeIdCard} />}
     </div>
   );
 }

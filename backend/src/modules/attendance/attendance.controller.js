@@ -11,6 +11,7 @@ exports.start = asyncHandler(async (req, res) => {
 });
 exports.listForBatch = asyncHandler(async (req, res) => ok(res, await sessions.listForBatch(req.user, req.params.batchId)));
 exports.todayForBatch = asyncHandler(async (req, res) => ok(res, await sessions.getTodayForBatch(req.user, req.params.batchId)));
+exports.todayForStaff = asyncHandler(async (req, res) => ok(res, await sessions.getTodayForStaff(req.user)));
 exports.studentToday = asyncHandler(async (req, res) => ok(res, await sessions.getStudentToday(req.user)));
 exports.get = asyncHandler(async (req, res) => ok(res, await sessions.getSession(req.user, req.params.sessionId)));
 exports.rotate = asyncHandler(async (req, res) => ok(res, await sessions.rotateToken(req.user, req.params.sessionId), 'QR token rotated'));
@@ -23,4 +24,4 @@ exports.cancel = asyncHandler(async (req, res) => ok(res, await sessions.cancelS
 exports.records = asyncHandler(async (req, res) => ok(res, await sessions.listRecords(req.user, req.params.sessionId)));
 exports.checkIn = asyncHandler(async (req, res) => created(res, await checkIn(req.user, req.body), 'Attendance recorded'));
 exports.correct = asyncHandler(async (req, res) => ok(res, await correctRecord(req.user, req.params.recordId, req.body), 'Attendance corrected'));
-exports.myHistory = asyncHandler(async (req, res) => ok(res, await myHistory(req.user)));
+exports.myHistory = asyncHandler(async (req, res) => ok(res, await myHistory(req.user, req.query)));

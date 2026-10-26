@@ -6,12 +6,27 @@ const pct = (v) => (v === null || v === undefined ? 'N/A' : `${v}%`);
 export default function History() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.get('/attendance/my-history').then((r) => setData(r.data.data)).catch((e) => setError(errMsg(e))); }, []);
-  if (error) return <div className="error">{error}</div>;
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    api.get('/attendance/my-history', { params: { page }, signal: controller.signal })
+      .then((response) => { if (!controller.signal.aborted) setData(response.data.data); })
+      .catch((loadError) => {
+        if (!controller.signal.aborted && loadError.name !== 'CanceledError' && loadError.name !== 'AbortError') setError(errMsg(loadError));
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [page]);
+  if (error && !data) return <div className="error" role="alert">{error}</div>;
   if (!data) return <p className="muted">Loading...</p>;
   return (
     <>
       <h1>My attendance</h1>
+      {error && <div className="error" role="alert">{error}</div>}
+      {loading && <p className="muted" role="status">Loading attendance history…</p>}
       <div className="card stat"><b>{pct(data.overall.percentage)}</b><span>Overall (minimum {data.overall.threshold}%)</span></div>
       {data.enrollments.length === 0 && <p className="muted">You are not enrolled in any course yet. Join a course to get started.</p>}
       {data.enrollments.map((e) => (
@@ -26,9 +41,16 @@ export default function History() {
             <tbody>{e.sessions.map((s) => (
               <tr key={s.recordId}><td>{new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', dateStyle: 'medium' }).format(new Date(s.sessionDate))}</td><td>{s.title || '-'}</td><td><Badge value={s.status} /></td>
                 <td>{s.checkInTimestamp ? new Date(s.checkInTimestamp).toLocaleTimeString() : '-'}</td></tr>))}
-              {e.sessions.length === 0 && <tr><td colSpan="4" className="muted">No closed sessions yet.</td></tr>}</tbody></table></div>
+              {e.sessions.length === 0 && <tr><td colSpan="4" className="muted">{data.history.pages > 1 ? 'No history records on this page.' : 'No closed sessions yet.'}</td></tr>}</tbody></table></div>
         </div>
       ))}
+      {data.history.pages > 1 && (
+        <div className="row spread" aria-label="Attendance history pagination">
+          <button className="btn ghost" type="button" disabled={loading || page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+          <span className="muted">Page {data.history.page} of {data.history.pages} · {data.history.total} records</span>
+          <button className="btn ghost" type="button" disabled={loading || page >= data.history.pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+        </div>
+      )}
     </>
   );
 }

@@ -6,9 +6,9 @@ import CourseCards from '../components/CourseCards';
 import Field from '../components/Field';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import StudentAuthLayout from '../components/StudentAuthLayout';
-import { courseSelectionSchema, registerEmailSchema, registerNameSchema, registerSchema, registrationCoursePayload, strongPassword, validate } from '../validation';
+import { courseSelectionSchema, registerEmailSchema, registerNameSchema, registerSchema, registrationCoursePayload, studentProfilePayload, strongPassword, validate } from '../validation';
 
-const initialValues = { name: '', email: '', password: '' };
+const initialValues = { name: '', email: '', password: '', mobileNumber: '', fatherName: '', motherName: '' };
 
 export default function Register() {
   const { register, loginGoogle } = useAuth();
@@ -63,6 +63,7 @@ export default function Register() {
     try {
       const user = await register({
         ...values,
+        ...studentProfilePayload(result.values),
         ...registrationCoursePayload(courseChoice, requestedCourseName),
       });
       nav(homeFor(user), { replace: true });
@@ -171,6 +172,34 @@ export default function Register() {
             maxLength={254}
             onChange={(event) => setValue('email', event.target.value, registerEmailSchema)}
             error={errors.email}
+          />
+          <Field
+            id="register-mobile"
+            label="Mobile phone (optional)"
+            type="tel"
+            autoComplete="tel"
+            value={values.mobileNumber}
+            maxLength={32}
+            onChange={(event) => setValue('mobileNumber', event.target.value)}
+            error={errors.mobileNumber}
+          />
+          <Field
+            id="register-father"
+            label="Father’s name (optional)"
+            autoComplete="off"
+            value={values.fatherName}
+            maxLength={120}
+            onChange={(event) => setValue('fatherName', event.target.value)}
+            error={errors.fatherName}
+          />
+          <Field
+            id="register-mother"
+            label="Mother’s name (optional)"
+            autoComplete="off"
+            value={values.motherName}
+            maxLength={120}
+            onChange={(event) => setValue('motherName', event.target.value)}
+            error={errors.motherName}
           />
           <div className="password-field">
             <Field

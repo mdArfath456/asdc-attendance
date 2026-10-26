@@ -8,7 +8,8 @@ const v = require('./courses.validation');
 router.get('/public', ctrl.listPublic);
 router.get('/public/:slug', validate({ params: v.slugParams }), ctrl.getPublic);
 router.get('/active', ctrl.listActive);
-
+router.get('/options', authenticate, authorizeRoles('ADMIN', 'TRAINER'), ctrl.listOptions);
+router.get('/paged', authenticate, authorizeRoles('ADMIN', 'TRAINER'), validate({ query: v.pageQuery }), ctrl.listPaginated);
 router.get('/', authenticate, authorizeRoles('ADMIN', 'TRAINER'), ctrl.list);
 router.get('/students', authenticate, authorizeRoles('ADMIN'), validate({ query: v.studentSearch }), ctrl.groupedStudents);
 router.get('/requested-students', authenticate, authorizeRoles('ADMIN'), validate({ query: v.studentSearch }), ctrl.requestedStudents);

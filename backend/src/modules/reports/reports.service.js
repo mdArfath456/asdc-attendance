@@ -27,8 +27,8 @@ async function scopeBatchIds(user, { batchId, courseId }) {
 }
 
 // One row per enrollment, over CLOSED sessions only (CANCELLED never counted).
-async function buildRows(user, q) {
-  const ids = await scopeBatchIds(user, q);
+async function buildRows(user, q, scopedIds) {
+  const ids = scopedIds === undefined ? await scopeBatchIds(user, q) : scopedIds;
   if (ids && ids.length === 0) return [];
   const match = {};
   if (ids) match.batchId = { $in: ids.map(oid) };
@@ -90,8 +90,7 @@ async function exportReport(user, q) {
   return { contentType: 'text/csv; charset=utf-8', filename: 'attendance-report.csv', body: csv };
 }
 
-async function summary(user, q) {
-  const rows = await buildRows(user, q);
+async function summaryFromRows(user, q, rows, ids) {
   const totals = rows.reduce((a, r) => ({ present: a.present + r.present, late: a.late + r.late, absent: a.absent + r.absent, excused: a.excused + r.excused }), { present: 0, late: 0, absent: 0, excused: 0 });
   const byBatch = new Map();
   for (const r of rows) {
@@ -99,7 +98,6 @@ async function summary(user, q) {
     b.present += r.present; b.late += r.late; b.absent += r.absent; b.excused += r.excused; b.students += 1; if (r.belowThreshold) b.belowThreshold += 1;
     byBatch.set(r.batchId, b);
   }
-  const ids = await scopeBatchIds(user, q);
   const sessionFilter = ids ? { batchId: { $in: ids.map(oid) } } : {};
   const [closed, cancelled] = await Promise.all([
     AttendanceSession.countDocuments({ ...sessionFilter, status: 'CLOSED' }),
@@ -114,4 +112,19 @@ async function summary(user, q) {
   };
 }
 
-module.exports = { report, exportReport, summary };
+async function summary(user, q) {
+  const ids = await scopeBatchIds(user, q);
+  const rows = await buildRows(user, q, ids);
+  return summaryFromRows(user, q, rows, ids);
+}
+
+async function overview(user, q) {
+  const ids = await scopeBatchIds(user, q);
+  const rows = await buildRows(user, q, ids);
+  const start = (q.page - 1) * q.limit;
+  const reportData = { items: rows.slice(start, start + q.limit), total: rows.length, page: q.page, limit: q.limit };
+  const summaryData = await summaryFromRows(user, q, rows, ids);
+  return { report: reportData, summary: summaryData };
+}
+
+module.exports = { report, exportReport, summary, overview };

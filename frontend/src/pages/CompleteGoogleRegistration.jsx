@@ -5,7 +5,7 @@ import { useAuth, homeFor } from '../auth/AuthContext';
 import CourseCards from '../components/CourseCards';
 import Field from '../components/Field';
 import StudentAuthLayout from '../components/StudentAuthLayout';
-import { courseSelectionSchema, registrationCoursePayload, validate } from '../validation';
+import { courseSelectionSchema, registrationCoursePayload, studentProfilePayload, studentProfileSchema, validate } from '../validation';
 
 export default function CompleteGoogleRegistration() {
   const location = useLocation();
@@ -14,6 +14,7 @@ export default function CompleteGoogleRegistration() {
   const [courses, setCourses] = useState([]);
   const [courseChoice, setCourseChoice] = useState(location.state?.courseChoice || location.state?.courseId || '');
   const [requestedCourseName, setRequestedCourseName] = useState(location.state?.requestedCourseName || '');
+  const [profile, setProfile] = useState({ mobileNumber: '', fatherName: '', motherName: '' });
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,9 +39,15 @@ export default function CompleteGoogleRegistration() {
     if (result.errors.courseChoice) courseRef.current?.focus();
     else if (result.errors.requestedCourseName) requestedCourseRef.current?.focus();
     if (!result.values) return;
+    const profileResult = validate(studentProfileSchema, profile);
+    setErrors((current) => ({ ...current, ...profileResult.errors }));
+    if (!profileResult.values) return;
     setBusy(true);
     try {
-      const user = await registerGoogle(idToken, registrationCoursePayload(courseChoice, requestedCourseName));
+      const user = await registerGoogle(idToken, {
+        ...registrationCoursePayload(courseChoice, requestedCourseName),
+        ...studentProfilePayload(profileResult.values),
+      });
       nav(homeFor(user), { replace: true });
     } catch (error) {
       if (errCode(error) === 'COURSE_NOT_AVAILABLE') setErrors({ courseChoice: 'Choose an active course' });
@@ -86,6 +93,44 @@ export default function CompleteGoogleRegistration() {
               error={errors.requestedCourseName}
             />
           )}
+          <Field
+            id="google-register-mobile"
+            label="Mobile phone (optional)"
+            type="tel"
+            autoComplete="tel"
+            value={profile.mobileNumber}
+            maxLength={32}
+            onChange={(event) => {
+              const value = event.target.value;
+              setProfile((current) => ({ ...current, mobileNumber: value }));
+              setErrors((current) => ({ ...current, mobileNumber: undefined }));
+            }}
+            error={errors.mobileNumber}
+          />
+          <Field
+            id="google-register-father"
+            label="Father’s name (optional)"
+            value={profile.fatherName}
+            maxLength={120}
+            onChange={(event) => {
+              const value = event.target.value;
+              setProfile((current) => ({ ...current, fatherName: value }));
+              setErrors((current) => ({ ...current, fatherName: undefined }));
+            }}
+            error={errors.fatherName}
+          />
+          <Field
+            id="google-register-mother"
+            label="Mother’s name (optional)"
+            value={profile.motherName}
+            maxLength={120}
+            onChange={(event) => {
+              const value = event.target.value;
+              setProfile((current) => ({ ...current, motherName: value }));
+              setErrors((current) => ({ ...current, motherName: undefined }));
+            }}
+            error={errors.motherName}
+          />
           <button className="btn auth-submit" disabled={busy}>{busy ? 'Creating account…' : 'Complete registration'}</button>
         </form>
         <p className="auth-links"><Link to="/login/student">Cancel</Link></p>
