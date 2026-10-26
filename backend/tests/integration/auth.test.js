@@ -47,6 +47,27 @@ describe('local auth', () => {
     expect(missing.status).toBe(400);
     expect(missing.body.error.code).toBe('VALIDATION_ERROR');
   });
+  test('each signed-in role can save and retrieve its own theme preference', async () => {
+    for (const role of ['STUDENT', 'TRAINER', 'ADMIN']) {
+      const user = role === 'ADMIN' ? admin : await f.createUser(role);
+      const authorization = f.auth(user);
+      const updated = await request(app)
+        .patch('/api/v1/users/me/preferences')
+        .set('Authorization', authorization)
+        .send({ themePreference: 'dark' });
+      expect(updated.status).toBe(200);
+      expect(updated.body.data.themePreference).toBe('dark');
+
+      const me = await request(app).get('/api/v1/auth/me').set('Authorization', authorization);
+      expect(me.status).toBe(200);
+      expect(me.body.data.themePreference).toBe('dark');
+    }
+    const student = await f.createUser('STUDENT');
+    expect((await request(app)
+      .patch('/api/v1/users/me/preferences')
+      .set('Authorization', f.auth(student))
+      .send({ themePreference: 'system' })).status).toBe(400);
+  });
   test('password registration always creates a student and rejects role injection', async () => {
     const course = await f.createCourse();
     const body = { name: 'New Learner', email: 'learner@example.test', password: 'StrongPassword9!', courseId: String(course._id) };

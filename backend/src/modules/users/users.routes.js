@@ -4,6 +4,7 @@ const validate = require('../../middleware/validate');
 const ctrl = require('./users.controller');
 const v = require('./users.validation');
 
+router.patch('/me/preferences', authenticate, validate({ body: v.preferencesBody }), ctrl.setPreferences);
 router.use(authenticate, authorizeRoles('ADMIN'));
 router.get('/', validate({ query: v.listQuery }), ctrl.list);
 router.patch('/:userId/status', validate({ params: v.userIdParams, body: v.statusBody }), ctrl.setStatus);

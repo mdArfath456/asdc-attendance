@@ -4,10 +4,31 @@ import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, setThemePreference } = useAuth();
   const nav = useNavigate();
   const base = user.role === 'ADMIN' ? '/admin' : user.role === 'TRAINER' ? '/trainer' : '/student';
   const [liveSessions, setLiveSessions] = useState([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [themeError, setThemeError] = useState('');
+  const isDark = user.themePreference === 'dark';
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const toggleTheme = async () => {
+    setThemeError('');
+    try {
+      await setThemePreference(isDark ? 'light' : 'dark');
+    } catch {
+      setThemeError('Could not save your appearance setting. Please try again.');
+    }
+  };
+
   useEffect(() => {
     if (!['ADMIN', 'TRAINER'].includes(user.role)) return undefined;
     let cancelled = false;
@@ -36,12 +57,39 @@ export default function Layout() {
   return (
     <div className="shell">
       <header className="topbar">
-        <Link to={base} className="brand">ASDC Attendance</Link>
-        <nav aria-label="Main navigation">{links.map(([to, label, end]) => <NavLink key={to} to={to} end={!!end}>{label}</NavLink>)}</nav>
-        <div className="who">
-          <span>{user.name} <small className="muted">({user.role.replace('_', ' ')})</small></span>
-          <button className="btn small ghost" onClick={async () => { await logout(); nav('/'); }}>Log out</button>
+        <div className="topbar-main">
+          <Link to={base} className="brand" onClick={() => setMenuOpen(false)}>ASDC Attendance</Link>
+          <div className="topbar-controls">
+            <button
+              className="btn small ghost theme-toggle"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+              aria-pressed={isDark}
+            >
+              <span aria-hidden="true">{isDark ? '☀' : '☾'}</span>
+              <span className="theme-toggle-label">{isDark ? 'Light mode' : 'Dark mode'}</span>
+            </button>
+            <button
+              className={`menu-toggle${menuOpen ? ' is-open' : ''}`}
+              type="button"
+              aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={menuOpen}
+              aria-controls="primary-navigation"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span /><span /><span />
+            </button>
+          </div>
         </div>
+        <div className={`topbar-menu${menuOpen ? ' is-open' : ''}`}>
+          <nav id="primary-navigation" aria-label="Main navigation">{links.map(([to, label, end]) => <NavLink key={to} to={to} end={!!end} onClick={() => setMenuOpen(false)}>{label}</NavLink>)}</nav>
+          <div className="who">
+            <span>{user.name} <small className="muted">({user.role.replace('_', ' ')})</small></span>
+            <button className="btn small ghost" onClick={async () => { await logout(); nav('/'); }}>Log out</button>
+          </div>
+        </div>
+        {themeError && <div className="topbar-message error" role="alert">{themeError}</div>}
         {liveSessions.map((session) => (
           <div className="live-banner" key={session._id}>
             Live session: {session.courseName} — <Link to={`${base}/session/${session._id}`}>Open QR screen</Link>

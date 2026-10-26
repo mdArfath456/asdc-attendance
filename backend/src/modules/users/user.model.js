@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
     },
     avatarUrl: { type: String, trim: true },
     requestedCourseName: { type: String, trim: true, maxlength: 80 },
+    themePreference: { type: String, enum: ['light', 'dark'], default: 'light' },
   },
   { timestamps: true }
 );

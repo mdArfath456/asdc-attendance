@@ -31,6 +31,10 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = user?.themePreference === 'dark' ? 'dark' : 'light';
+  }, [user?.themePreference]);
+
   const apply = useCallback((d) => { setAccessToken(d.accessToken); setSessionHint(true); setUser(d.user); return d.user; }, []);
   const login = useCallback(async (email, password, adminOnly = false) => apply((await api.post('/auth/login', { email, password, ...(adminOnly ? { adminOnly: true } : {}) })).data.data), [apply]);
   const loginGoogle = useCallback(async (idToken, adminOnly = false) => apply((await api.post('/auth/google', { idToken, ...(adminOnly ? { adminOnly: true } : {}) })).data.data), [apply]);
@@ -43,8 +47,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
   const updateUser = useCallback((patch) => setUser((current) => current ? { ...current, ...patch } : current), []);
+  const setThemePreference = useCallback(async (themePreference) => {
+    const response = await api.patch('/users/me/preferences', { themePreference });
+    setUser(response.data.data);
+  }, []);
 
-  const value = useMemo(() => ({ user, loading, login, loginGoogle, register, registerGoogle, logout, updateUser }), [user, loading, login, loginGoogle, register, registerGoogle, logout, updateUser]);
+  const value = useMemo(() => ({ user, loading, login, loginGoogle, register, registerGoogle, logout, updateUser, setThemePreference }), [user, loading, login, loginGoogle, register, registerGoogle, logout, updateUser, setThemePreference]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

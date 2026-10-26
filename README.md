@@ -71,6 +71,8 @@ Covers all 15 acceptance criteria: Google link/reject (verifyIdToken mocked), RB
 - Multi-step operations (session close + ABSENT generation, enrollment transfer, manual correction + audit) use a MongoDB transaction automatically when the server supports it (replica set/Atlas); on a plain MongoDB they use atomic gates, idempotent upserts and rollback on failure. Both paths are tested.
 - Auto-close of expired sessions runs every 30 s in the API process.
 - Access token lives in memory only; refresh token is an httpOnly cookie with rotation + reuse detection.
+- Signed-in users can choose light or dark appearance; the preference is stored on their account and follows them across devices.
+- The responsive navigation collapses into an accessible hamburger menu on small screens and accounts for mobile safe-area insets.
 
 ## Known limits / next steps
 - QR relay (a present student streaming the code to a remote one) cannot be fully prevented; use headcount reconciliation. No GPS/biometrics collected.

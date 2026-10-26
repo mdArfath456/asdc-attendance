@@ -42,4 +42,11 @@ async function setStatus(actor, userId, { status, reason }) {
   return target;
 }
 
-module.exports = { getById, list, setStatus };
+async function setPreferences(actor, { themePreference }) {
+  const user = await getById(actor.id);
+  user.themePreference = themePreference;
+  await user.save();
+  return user;
+}
+
+module.exports = { getById, list, setStatus, setPreferences };
