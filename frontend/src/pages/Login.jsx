@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
 import { errCode, errMsg } from '../api';
 import { useAuth, homeFor } from '../auth/AuthContext';
 import Field from '../components/Field';
 import StudentAuthLayout from '../components/StudentAuthLayout';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { loginSchema, validate } from '../validation';
 import AccessDenied from '../components/AccessDenied';
 
@@ -86,7 +86,7 @@ export default function Login({ adminOnly = false }) {
           <p className="admin-note">Only the registered administrator email can sign in.</p>
           {message && <div className="error" role="alert">{message}</div>}
           <div className="google-button">
-            <GoogleLogin onSuccess={google} onError={() => setMessage('Google sign-in failed or was cancelled.')} text="signin_with" shape="rectangular" />
+            <GoogleSignInButton onSuccess={google} onError={() => setMessage('Google sign-in failed or was cancelled.')} text="signin_with" shape="rectangular" />
           </div>
           <div className="divider">or sign in with password</div>
           <form noValidate onSubmit={submit}>
@@ -135,7 +135,7 @@ export default function Login({ adminOnly = false }) {
         <p className="muted">Sign in to continue to your course group.</p>
         {message && <div className="error" role="alert">{message}</div>}
         <div className="google-button">
-          <GoogleLogin onSuccess={google} onError={() => setMessage('Google sign-in failed or was cancelled.')} text="signin_with" shape="rectangular" />
+          <GoogleSignInButton onSuccess={google} onError={() => setMessage('Google sign-in failed or was cancelled.')} text="signin_with" shape="rectangular" />
         </div>
         <div className="divider">or use email and password</div>
         <form noValidate onSubmit={submit}>

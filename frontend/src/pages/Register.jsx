@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
 import api, { errCode, errMsg } from '../api';
 import { useAuth, homeFor } from '../auth/AuthContext';
 import CourseCards from '../components/CourseCards';
 import Field from '../components/Field';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import StudentAuthLayout from '../components/StudentAuthLayout';
-import { courseSelectionSchema, registerSchema, registrationCoursePayload, strongPassword, validate } from '../validation';
+import { courseSelectionSchema, registerEmailSchema, registerNameSchema, registerSchema, registrationCoursePayload, strongPassword, validate } from '../validation';
 
 const initialValues = { name: '', email: '', password: '' };
 
@@ -147,7 +147,7 @@ export default function Register() {
         )}
         {courses.length === 0 && <p className="muted">No courses yet. You can request one using “Other”; an administrator will review it.</p>}
         <div className="google-button auth-google">
-          <GoogleLogin onSuccess={google} onError={() => setMessage('Google sign-in failed or was cancelled.')} text="continue_with" shape="rectangular" />
+          <GoogleSignInButton onSuccess={google} onError={() => setMessage('Google sign-in failed or was cancelled.')} text="continue_with" shape="rectangular" />
         </div>
         <div className="divider">or create an account with email</div>
         <form noValidate onSubmit={submit}>
@@ -158,7 +158,7 @@ export default function Register() {
             autoComplete="name"
             value={values.name}
             maxLength={120}
-            onChange={(event) => setValue('name', event.target.value, registerSchema.shape.name)}
+            onChange={(event) => setValue('name', event.target.value, registerNameSchema)}
             error={errors.name}
           />
           <Field
@@ -169,7 +169,7 @@ export default function Register() {
             autoComplete="email"
             value={values.email}
             maxLength={254}
-            onChange={(event) => setValue('email', event.target.value, registerSchema.shape.email)}
+            onChange={(event) => setValue('email', event.target.value, registerEmailSchema)}
             error={errors.email}
           />
           <div className="password-field">

@@ -6,9 +6,12 @@ export const strongPassword = z.string().min(12).max(128, 'Password must be 128 
   .regex(/[0-9]/, 'Password must include a number')
   .regex(/[^A-Za-z0-9]/, 'Password must include a symbol');
 
+export const registerNameSchema = z.string().trim().min(2, 'Enter your name').max(120);
+export const registerEmailSchema = z.string().trim().toLowerCase().email('Enter a valid email').max(254);
+
 export const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Enter your name').max(120),
-  email: z.string().trim().toLowerCase().email('Enter a valid email').max(254),
+  name: registerNameSchema,
+  email: registerEmailSchema,
   password: strongPassword,
   courseChoice: z.string().min(1, 'Choose a course'),
   requestedCourseName: z.string().trim().min(2, 'Enter a course name').max(80, 'Course names must be 80 characters or fewer').refine((name) => !/[<>]/.test(name), 'Course name cannot contain markup characters').optional(),
