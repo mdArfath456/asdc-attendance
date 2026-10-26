@@ -11,6 +11,7 @@
     "merge-same-day-sessions": "node scripts/merge-same-day-sessions.js",
     "docs:generate": "node scripts/generate-docs.js",
     "test": "jest --runInBand --forceExit",
+    "seed-admin": "node scripts/seed-admin.js",
     "test:replset": "TEST_REPLSET=1 jest --runInBand --forceExit",
     "test:unit": "jest --runInBand --forceExit tests/unit",
     "test:integration": "jest --runInBand --forceExit tests/integration"
